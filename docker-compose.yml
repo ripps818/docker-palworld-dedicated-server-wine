@@ -5,7 +5,7 @@ networks:
 services:
   palworld-dedicated-server:
     container_name: palworld-wine-server
-    image: ripps818/palworld-dedicated-server-wine:latest
+    image: ghcr.io/ripps818/docker-palworld-dedicated-server-wine:latest
     restart: unless-stopped
     ports:
       - target: 8211 # Gamerserver port inside of the container
