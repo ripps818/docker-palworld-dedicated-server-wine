@@ -7,6 +7,10 @@ source /includes/colors.sh
 source /includes/server.sh
 source /includes/webhook.sh
 
+function get_time() {
+    date '+[%H:%M:%S]'
+}
+
 function schedule_restart() {
     ew ">>> Automatic restart was triggered..."
     PLAYER_DETECTION_PID=$(<${GAME_ROOT}/PLAYER_DETECTION.PID)
@@ -31,28 +35,27 @@ function schedule_restart() {
                     send_restart_now_notification
                 fi
                 break
-            else 
+            else
                 ew ">>> Server has still players"
             fi
 			if [[ $RCON_QUIET_RESTART == false ]]; then
-				time=$(date '+%H:%M:%S')
-				rconcli "broadcast ${time}-AUTOMATIC-RESTART-IN-$counter-MINUTES"
+				rconcli "broadcast $(get_time) AUTOMATIC RESTART IN $counter MINUTES"
 		    fi
         fi
         if [[ -n $RESTART_DEBUG_OVERRIDE ]] && [[ $RESTART_DEBUG_OVERRIDE == "true" ]]; then
             sleep 1
         else
             sleep 60
-        fi 
+        fi
     done
 
     if [[ -n $RCON_ENABLED ]] && [[ $RCON_ENABLED == "true" ]]; then
         if [[ $RCON_QUIET_SAVE == false ]]; then
-			rconcli 'broadcast Saving-world-before-restart...'
+			rconcli 'broadcast $(get_time) Saving world before restart...'
         fi
 		rconcli 'save'
 		if [[ $RCON_QUIET_SAVE == false ]]; then
-			rconcli 'broadcast Saving-done'
+			rconcli 'broadcast $(get_time) Savingdone'
         fi
 		sleep 15
 		kill -SIGTERM "${PLAYER_DETECTION_PID}"
