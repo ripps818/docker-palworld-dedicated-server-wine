@@ -150,7 +150,7 @@ function create_backup() {
 		rconcli 'broadcast $(get_time) Creating-backup'
 	fi
 
-    if ! tar cfz "${LOCAL_BACKUP_PATH}/${backup_file_name}" -C "${LOCAL_GAME_PATH}/" "Saved" ; then
+    if ! tar cfz "${LOCAL_BACKUP_PATH}/${backup_file_name}" -C "${LOCAL_GAME_PATH}/" --exclude "backup" "Saved" ; then
         broadcast_backup_failed
         ee ">>> Backup failed"
     else
