@@ -7,6 +7,11 @@ services:
     container_name: palworld-wine-server
     image: ghcr.io/ripps818/docker-palworld-dedicated-server-wine:latest
     restart: unless-stopped
+    logging:
+      driver: "local"
+      options:
+        max-size: "10m"
+        max-file: "3"
     ports:
       - target: 8211 # Gamerserver port inside of the container
         published: 8211 # Gamerserver port on your host
