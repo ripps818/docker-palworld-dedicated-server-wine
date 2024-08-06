@@ -2,6 +2,14 @@
 
 [Back to main](README.md#changelog)
 
+## 2024-06-24
+
+- added support for new variables @jammsen (#276)
+
+## 2024-06-24
+
+- Add support-documentation for Xbox-Dedicated-Servers @jammsen (#269)
+
 ## 2024-04-28
 
 - Log-Rotation by @Gornoka (#261)
