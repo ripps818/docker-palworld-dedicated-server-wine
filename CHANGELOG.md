@@ -1,6 +1,10 @@
 # Changelog
 
 [Back to main](README.md#changelog)
+## 2024-09-20
+
+- added process-based Healthcheck @jammsen (#275)
+
 ## 2024-08-15
 
 - added support for variable SUPPLY_DROP_SPAN @KyleDiao (#279)
