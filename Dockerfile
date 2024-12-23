@@ -263,8 +263,8 @@ RUN apt-get autoremove -y --purge \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Setup User/Group
-RUN groupadd --gid $PGID steam && \
-    useradd --uid $PUID --gid $PGID -M steam
+#RUN groupadd --gid $PGID steam
+#RUN useradd --uid $PUID --gid $PGID -M steam
 
 COPY --chmod=755 entrypoint.sh /
 COPY --chmod=755 scripts/ /scripts
