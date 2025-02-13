@@ -284,7 +284,7 @@ RUN mkdir -p "$BACKUP_PATH" \
 VOLUME ["${GAME_ROOT}"]
 
 HEALTHCHECK --interval=10s --timeout=10s --start-period=30s --retries=3 \ 
-    CMD pgrep -x "PalServer-Win64" >/dev/null 2>&1 || exit 1
+    CMD pgrep -f "PalServer-Win64" >/dev/null 2>&1 || exit 1
 
 ENTRYPOINT  ["/entrypoint.sh"]
 CMD ["/scripts/servermanager.sh"]
