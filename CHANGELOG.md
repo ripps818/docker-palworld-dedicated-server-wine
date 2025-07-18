@@ -2,6 +2,24 @@
 
 [Back to main](README.md#changelog)
 
+## 2025-07-17
+
+- Added new config-settings for v0.6.0 @GlitchApotamus  (#301)
+- Added different mechanics for ci/cd pipeline unit-tests and timeouts for PRs
+
+## 2025-03-22
+
+- Added complete coverage of new v0.4.0 and v0.5.0 variable changes @jammsen (#294)
+- Added counter for all settings in the log, we are now at 87 gameserver settings, this makes logging and searching easier, also debugging in issues
+
+## 2025-03-20
+
+- Adding first part of new v0.5.0 changes @jammsen (#294)
+
+## 2025-01-29
+
+- Added unit-tests (Thanks to @thijsvanloef for the base) @jammsen (#291)
+
 ## 2025-01-14
 
 - Fixed Player detection loop bug @jammsen (#287)
@@ -12,23 +30,23 @@
 
 ## 2024-12-23
 
-- added new configs for Palworld: Feybreak @jammsen (#283)
+- Added new configs for Palworld: Feybreak @jammsen (#283)
 
 ## 2024-09-20
 
-- added process-based Healthcheck @jammsen (#275)
+- Added process-based Healthcheck @jammsen (#275)
 
 ## 2024-08-15
 
-- added support for variable SUPPLY_DROP_SPAN @KyleDiao (#279)
+- Added support for variable SUPPLY_DROP_SPAN @KyleDiao (#279)
 
 ## 2024-08-12
 
-- added support to turn off backup-announcements, to have less spammy chat ingame, but errors will always be announced @Jadiction @jammsen (#272)
+- Added support to turn off backup-announcements, to have less spammy chat ingame, but errors will always be announced @Jadiction @jammsen (#272)
 
 ## 2024-06-24
 
-- added support for new variables @jammsen (#276)
+- Added support for new variables @jammsen (#276)
 
 ## 2024-06-24
 
