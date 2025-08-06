@@ -224,22 +224,7 @@ EXPOSE 27015/tcp
 COPY --from=rconclibuilder /build/gorcon /usr/local/bin/rcon
 COPY --from=supercronicverify /usr/local/bin/supercronic /usr/local/bin/supercronic
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends --no-install-suggests \
-	procps \
-	xdg-user-dirs \
-	locales \
-	sed \
-	wget\
-	curl \
-	unzip \
-	winbind \
-	ca-certificates \
-	cabextract \
-	gnupg \
-	xvfb \
-	zenity \
-	tzdata
+RUN apt-get update     && apt-get install -y --no-install-recommends --no-install-suggests 	procps 	xdg-user-dirs 	locales 	sed 	wget	curl 	unzip 	winbind 	ca-certificates 	cabextract 	gnupg 	xvfb 	zenity 	tzdata 	gettext-base
 
 # Configure locale
 RUN echo "LANG=US.UTF-8" >/etc/default/locale && \
@@ -277,7 +262,7 @@ RUN apt-get autoremove -y --purge \
 COPY --chmod=755 entrypoint.sh /
 COPY --chmod=755 scripts/ /scripts
 COPY --chmod=755 includes/ /includes
-COPY --chmod=644 configs/rcon.yaml /home/steam/steamcmd/rcon.yaml
+COPY --chmod=644 configs/rcon.yaml.template /rcon.yaml.template
 COPY --chmod=644 configs/PalWorldSettings.ini.template /
 COPY --chmod=755 gosu-amd64 /usr/local/bin/gosu
 

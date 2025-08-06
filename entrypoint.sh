@@ -9,6 +9,7 @@ APP_GROUP=steam
 APP_HOME=/home/$APP_USER
 
 source /includes/colors.sh
+source /includes/config.sh
 
 if [[ "${EUID}" -ne 0 ]]; then
     ee ">>> This Docker-Container must be run as root! Please adjust how you started the container, to fix this error."
@@ -29,6 +30,7 @@ fi
 
 chown -R "$APP_USER":"$APP_GROUP" "$APP_HOME"
 chown -R "$APP_USER":"$APP_GROUP" "$GAME_ROOT"
+chown -R "$APP_USER":"$APP_GROUP" "$STEAMCMD_PATH"
 
 ew_nn "> id steam: " ; e "$(id steam)"
 
@@ -44,5 +46,7 @@ if [ -f /tmp/.X99-lock ]; then
 fi
 
 Xvfb $DISPLAY -ac -nolisten tcp -screen 0 640x480x8 &
+
+setup_configs
 
 exec gosu $APP_USER:$APP_GROUP "$@"
