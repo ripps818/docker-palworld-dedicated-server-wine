@@ -49,7 +49,7 @@ function start_main() {
 }
 
 # Bash-Trap for exit signals to handle
-trap 'kill ${!}; term_handler' SIGTERM
+trap 'term_handler' SIGTERM
 
 # Main process loop
 while true

@@ -28,16 +28,73 @@ function start_server() {
 
 function stop_server() {
     ew ">>> Stopping server..."
-    kill -SIGTERM "${PLAYER_DETECTION_PID}"
-    if [[ -n $RCON_ENABLED ]] && [[ $RCON_ENABLED == "true" ]]; then
-        save_and_shutdown_server
+    kill -SIGTERM "${PLAYER_DETECTION_PID}" 2>/dev/null
+
+    local server_executable
+    server_executable=$(basename "${GAME_BIN}")
+    local killed=false
+
+    # Check if server is running
+    if ! pgrep -f "${server_executable}" > /dev/null; then
+        ew ">>> Server process not found."
+    else
+        # Stage 1: RCON
+        if [[ -n $RCON_ENABLED ]] && [[ $RCON_ENABLED == "true" ]]; then
+            ew ">>> Attempting graceful shutdown via RCON..."
+            save_and_shutdown_server
+            ew ">>> Waiting up to 20 seconds for server to shut down..."
+            for i in {1..20}; do
+                if ! pgrep -f "${server_executable}" > /dev/null; then
+                    break
+                fi
+                sleep 1
+            done
+        fi
     fi
-    kill -SIGTERM "$(pidof start.exe)"
-    tail --pid="$(pidof start.exe)" -f 2>/dev/null
-	if [[ -n $WEBHOOK_ENABLED ]] && [[ $WEBHOOK_ENABLED == "true" ]]; then
+
+    # Stage 2: wine taskkill (graceful)
+    if pgrep -f "${server_executable}" > /dev/null; then
+        ew ">>> RCON shutdown timed out or was skipped. Attempting shutdown via wine taskkill..."
+        wine taskkill /im "${server_executable}" >/dev/null 2>&1
+        ew ">>> Waiting up to 10 seconds for server to shut down..."
+        for i in {1..10}; do
+            if ! pgrep -f "${server_executable}" > /dev/null; then
+                break
+            fi
+            sleep 1
+        done
+    fi
+
+    # Stage 3: SIGTERM
+    if pgrep -f "${server_executable}" > /dev/null; then
+        ew ">>> wine taskkill timed out. Sending SIGTERM to server process..."
+        pkill -f -SIGTERM "${server_executable}"
+        ew ">>> Waiting up to 10 seconds for server to shut down..."
+        for i in {1..10}; do
+            if ! pgrep -f "${server_executable}" > /dev/null; then
+                break
+            fi
+            sleep 1
+        done
+    fi
+
+    # Stage 4: SIGKILL
+    if pgrep -f "${server_executable}" > /dev/null; then
+        ew ">>> Server process did not respond to SIGTERM. Sending SIGKILL (force kill)."
+        pkill -f -SIGKILL "${server_executable}"
+        killed=true
+        sleep 2
+    fi
+
+    if [[ -n $WEBHOOK_ENABLED ]] && [[ $WEBHOOK_ENABLED == "true" ]]; then
         send_stop_notification
     fi
-    ew ">>> Server stopped gracefully"
+
+    if [[ "$killed" == "true" ]]; then
+        ew ">>> Server stopped by force (SIGKILL)."
+    else
+        ew ">>> Server stopped gracefully."
+    fi
     exit 143;
 }
 

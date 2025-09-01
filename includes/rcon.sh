@@ -8,6 +8,7 @@ function save_and_shutdown_server() {
     rconcli broadcast "$(get_time) Server shutdown requested. Saving..."
     rconcli save
     rconcli broadcast "$(get_time) Saving done. Server shutting down..."
+    rconcli "Shutdown 10"
 }
 
 function broadcast_automatic_restart() {
