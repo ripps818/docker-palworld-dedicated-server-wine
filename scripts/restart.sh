@@ -38,7 +38,7 @@ function schedule_restart() {
             else
                 ew ">>> Server has still players"
             fi
-			if [[ $RCON_QUIET_RESTART == false ]]; then
+			if [[ -n $RESTART_ANNOUNCE_MESSAGES_ENABLED ]] && [[ $RESTART_ANNOUNCE_MESSAGES_ENABLED == "true" ]]; then
 				rconcli "broadcast $(get_time) AUTOMATIC RESTART IN $counter MINUTES"
 		    fi
         fi
@@ -50,12 +50,12 @@ function schedule_restart() {
     done
 
     if [[ -n $RCON_ENABLED ]] && [[ $RCON_ENABLED == "true" ]]; then
-        if [[ $RCON_QUIET_SAVE == false ]]; then
-			rconcli 'broadcast $(get_time) Saving world before restart...'
+        if [[ -n $RESTART_ANNOUNCE_MESSAGES_ENABLED ]] && [[ $RESTART_ANNOUNCE_MESSAGES_ENABLED == "true" ]]; then
+			rconcli "broadcast $(get_time) Saving world before restart..."
         fi
 		rconcli 'save'
-		if [[ $RCON_QUIET_SAVE == false ]]; then
-			rconcli 'broadcast $(get_time) Savingdone'
+		if [[ -n $RESTART_ANNOUNCE_MESSAGES_ENABLED ]] && [[ $RESTART_ANNOUNCE_MESSAGES_ENABLED == "true" ]]; then
+			rconcli "broadcast $(get_time) Saving done"
         fi
 		sleep 15
 		kill -SIGTERM "${PLAYER_DETECTION_PID}"
