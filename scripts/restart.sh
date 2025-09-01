@@ -13,7 +13,9 @@ function get_time() {
 
 function schedule_restart() {
     ew ">>> Automatic restart was triggered..."
-    PLAYER_DETECTION_PID=$(<${GAME_ROOT}/PLAYER_DETECTION.PID)
+    if [[ -f "${GAME_ROOT}/PLAYER_DETECTION.PID" ]]; then
+        export PLAYER_DETECTION_PID=$(<"${GAME_ROOT}/PLAYER_DETECTION.PID")
+    fi
     if [[ -n $WEBHOOK_ENABLED ]] && [[ $WEBHOOK_ENABLED == "true" ]]; then
         send_restart_planned_notification
     fi
@@ -38,7 +40,7 @@ function schedule_restart() {
             else
                 ew ">>> Server has still players"
             fi
-			if [[ $RCON_QUIET_RESTART == false ]]; then
+			if [[ -n $RESTART_ANNOUNCE_MESSAGES_ENABLED ]] && [[ $RESTART_ANNOUNCE_MESSAGES_ENABLED == "true" ]]; then
 				rconcli "broadcast $(get_time) AUTOMATIC RESTART IN $counter MINUTES"
 		    fi
         fi
@@ -50,30 +52,24 @@ function schedule_restart() {
     done
 
     if [[ -n $RCON_ENABLED ]] && [[ $RCON_ENABLED == "true" ]]; then
-        if [[ $RCON_QUIET_SAVE == false ]]; then
-			rconcli 'broadcast $(get_time) Saving world before restart...'
+        if [[ -n $RESTART_ANNOUNCE_MESSAGES_ENABLED ]] && [[ $RESTART_ANNOUNCE_MESSAGES_ENABLED == "true" ]]; then
+			rconcli "broadcast $(get_time) Saving world before restart..."
         fi
 		rconcli 'save'
-		if [[ $RCON_QUIET_SAVE == false ]]; then
-			rconcli 'broadcast $(get_time) Savingdone'
+		if [[ -n $RESTART_ANNOUNCE_MESSAGES_ENABLED ]] && [[ $RESTART_ANNOUNCE_MESSAGES_ENABLED == "true" ]]; then
+			rconcli "broadcast $(get_time) Saving done"
         fi
 		sleep 15
-		kill -SIGTERM "${PLAYER_DETECTION_PID}"
+		if [[ -n "${PLAYER_DETECTION_PID}" ]]; then
+			kill -SIGTERM "${PLAYER_DETECTION_PID}"
+		fi
 		rconcli "Shutdown 10"
 
         if [[ -n $WEBHOOK_ENABLED ]] && [[ $WEBHOOK_ENABLED == "true" ]]; then
             send_stop_notification
         fi
     else
-        ew ">>> Stopping server..."
-        if [[ -n $WEBHOOK_ENABLED ]] && [[ $WEBHOOK_ENABLED == "true" ]]; then
-            send_stop_notification
-        fi
-        kill -SIGTERM "$(pidof start.exe)"
-        tail --pid="$(pidof start.exe)" -f 2>/dev/null
-		kill -SIGTERM "${PLAYER_DETECTION_PID}"
-		ew ">>> Server stopped gracefully"
-        exit 143;
+        stop_server
     fi
 }
 

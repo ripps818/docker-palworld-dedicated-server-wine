@@ -34,6 +34,7 @@ function term_handler() {
 # Main process thread
 function start_main() {
     check_for_default_credentials
+    check_for_deprecated_variables
 	if [ "${WINETRICK_ON_START}" == "true" ]; then
 		winetricks_install
 	fi
@@ -49,7 +50,7 @@ function start_main() {
 }
 
 # Bash-Trap for exit signals to handle
-trap 'kill ${!}; term_handler' SIGTERM
+trap 'term_handler' SIGTERM
 
 # Main process loop
 while true
@@ -64,7 +65,7 @@ do
     if [[ -n $RCON_PLAYER_DETECTION ]] && [[ $RCON_PLAYER_DETECTION == "true" ]] && [[ -n $RCON_ENABLED ]] && [[ $RCON_ENABLED == "true" ]]; then
        player_detection_loop &
        PLAYER_DETECTION_PID="$!"
-       echo $PLAYER_DETECTION_PID > PLAYER_DETECTION.PID
+       echo "${PLAYER_DETECTION_PID}" > "${GAME_ROOT}/PLAYER_DETECTION.PID"
        ew "> Player detection thread started with pid ${PLAYER_DETECTION_PID}"
     fi
 

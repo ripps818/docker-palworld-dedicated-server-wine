@@ -71,9 +71,6 @@ ENV DEBIAN_FRONTEND=noninteractive \
 	WINEARCH=win64 \
 	WINEDEBUG=-all \
 	DISPLAY=:99 \
-	RCON_QUIET_BACKUP=false \
-	RCON_QUIET_RESTART=false \
-	RCON_QUIET_SAVE=false \
     # SteamCMD-settings
     ALWAYS_UPDATE_ON_START=true \
     STEAMCMD_VALIDATE_FILES=true \
@@ -86,6 +83,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     # Restart-settings
 	RESTART_COUNTDOWN=15 \
     RESTART_ENABLED=false \
+    RESTART_ANNOUNCE_MESSAGES_ENABLED=true \
     RESTART_DEBUG_OVERRIDE=false \
     RESTART_CRON_EXPRESSION="0 18 * * *" \
     # RCON-Playerdetection - NEEDS RCON ENABLED!

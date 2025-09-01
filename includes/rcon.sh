@@ -8,48 +8,44 @@ function save_and_shutdown_server() {
     rconcli broadcast "$(get_time) Server shutdown requested. Saving..."
     rconcli save
     rconcli broadcast "$(get_time) Saving done. Server shutting down..."
+    rconcli "Shutdown 10"
 }
 
 function broadcast_automatic_restart() {
     for ((counter=1; counter<=15; counter++)); do
-		if [[ $RCON_QUIET_RESTART == false ]]; then
-			rconcli "broadcast ${get_time}-AUTOMATIC-RESTART-IN-$counter-MINUTES"
+		if [[ -n $RESTART_ANNOUNCE_MESSAGES_ENABLED ]] && [[ $RESTART_ANNOUNCE_MESSAGES_ENABLED == "true" ]]; then
+			rconcli "broadcast $(get_time)-AUTOMATIC-RESTART-IN-$counter-MINUTES"
 		fi
 		sleep 1
     done
-	if [[ $RCON_QUIET_RESTART == false ]]; then
-		rconcli 'broadcast ${get_time} Saving world before restart...'
+	if [[ -n $RESTART_ANNOUNCE_MESSAGES_ENABLED ]] && [[ $RESTART_ANNOUNCE_MESSAGES_ENABLED == "true" ]]; then
+		rconcli "broadcast $(get_time) Saving world before restart..."
 	fi
     rconcli 'save'
-    rconcli 'broadcast ${get_time} Saving done'
-    if [[ $RCON_QUIET_BACKUP == false ]]; then
-		rconcli 'broadcast ${get_time} Creating backup'
+    rconcli "broadcast $(get_time) Saving done"
+    if [[ -n $BACKUP_ANNOUNCE_MESSAGES_ENABLED ]] && [[ $BACKUP_ANNOUNCE_MESSAGES_ENABLED == "true" ]]; then
+		rconcli "broadcast $(get_time) Creating backup"
     fi
 	rconcli "Shutdown 10"
 }
 
 function broadcast_backup_start() {
-    time=$(date '+%H:%M:%S')
-
-    if [[ $RCON_QUIET_SAVE == false ]]; then
-		rconcli "broadcast ${get_time} Saving in 5 seconds..."
+    if [[ -n $BACKUP_ANNOUNCE_MESSAGES_ENABLED ]] && [[ $BACKUP_ANNOUNCE_MESSAGES_ENABLED == "true" ]]; then
+        rconcli "broadcast $(get_time) Saving in 5 seconds..."
+        sleep 5
+        rconcli "broadcast $(get_time) Saving world..."
+        rconcli save
+        rconcli "broadcast $(get_time) Saving done"
+        sleep 15
+        rconcli "broadcast $(get_time) Creating backup..."
+    else
+        rconcli save
     fi
-    sleep 5
-	if [[ $RCON_QUIET_SAVE == false ]]; then
-		rconcli 'broadcast ${get_time} Saving world...'
-	fi
-    rconcli 'save'
-	if [[ $RCON_QUIET_SAVE == false ]]; then
-		rconcli 'broadcast ${get_time} Saving done'
-	fi
-	if [[ $RCON_QUIET_BACKUP == false ]]; then
-		rconcli 'broadcast ${get_time}  Creating backup'
-	fi
 }
 
 function broadcast_backup_success() {
-	if [[ $RCON_QUIET_BACKUP == false ]]; then
-		rconcli 'broadcast ${get_time} Backup done'
+	if [[ -n $BACKUP_ANNOUNCE_MESSAGES_ENABLED ]] && [[ $BACKUP_ANNOUNCE_MESSAGES_ENABLED == "true" ]]; then
+		rconcli "broadcast $(get_time) Backup done"
 	fi
 }
 
