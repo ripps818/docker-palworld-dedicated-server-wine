@@ -65,7 +65,7 @@ do
     if [[ -n $RCON_PLAYER_DETECTION ]] && [[ $RCON_PLAYER_DETECTION == "true" ]] && [[ -n $RCON_ENABLED ]] && [[ $RCON_ENABLED == "true" ]]; then
        player_detection_loop &
        PLAYER_DETECTION_PID="$!"
-       echo $PLAYER_DETECTION_PID > PLAYER_DETECTION.PID
+       echo "${PLAYER_DETECTION_PID}" > "${GAME_ROOT}/PLAYER_DETECTION.PID"
        ew "> Player detection thread started with pid ${PLAYER_DETECTION_PID}"
     fi
 

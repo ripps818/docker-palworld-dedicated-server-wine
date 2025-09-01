@@ -13,7 +13,9 @@ function get_time() {
 
 function schedule_restart() {
     ew ">>> Automatic restart was triggered..."
-    PLAYER_DETECTION_PID=$(<${GAME_ROOT}/PLAYER_DETECTION.PID)
+    if [[ -f "${GAME_ROOT}/PLAYER_DETECTION.PID" ]]; then
+        export PLAYER_DETECTION_PID=$(<"${GAME_ROOT}/PLAYER_DETECTION.PID")
+    fi
     if [[ -n $WEBHOOK_ENABLED ]] && [[ $WEBHOOK_ENABLED == "true" ]]; then
         send_restart_planned_notification
     fi
@@ -58,22 +60,16 @@ function schedule_restart() {
 			rconcli "broadcast $(get_time) Saving done"
         fi
 		sleep 15
-		kill -SIGTERM "${PLAYER_DETECTION_PID}"
+		if [[ -n "${PLAYER_DETECTION_PID}" ]]; then
+			kill -SIGTERM "${PLAYER_DETECTION_PID}"
+		fi
 		rconcli "Shutdown 10"
 
         if [[ -n $WEBHOOK_ENABLED ]] && [[ $WEBHOOK_ENABLED == "true" ]]; then
             send_stop_notification
         fi
     else
-        ew ">>> Stopping server..."
-        if [[ -n $WEBHOOK_ENABLED ]] && [[ $WEBHOOK_ENABLED == "true" ]]; then
-            send_stop_notification
-        fi
-        kill -SIGTERM "$(pidof start.exe)"
-        tail --pid="$(pidof start.exe)" -f 2>/dev/null
-		kill -SIGTERM "${PLAYER_DETECTION_PID}"
-		ew ">>> Server stopped gracefully"
-        exit 143;
+        stop_server
     fi
 }
 
