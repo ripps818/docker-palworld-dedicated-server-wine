@@ -137,7 +137,7 @@ function create_backup() {
 
     mkdir -p "${LOCAL_BACKUP_PATH}"
 
-    if [[ -n $LOCAL_BACKUP_ANNOUNCE_MESSAGES_ENABLED ]] && [[ $LOCAL_BACKUP_ANNOUNCE_MESSAGES_ENABLED == "true" ]]; then
+    if [[ -n $LOCAL_BACKUP_ANNOUNCE_MESSAGES_ENABLED ]] && [[ "${LOCAL_BACKUP_ANNOUNCE_MESSAGES_ENABLED,,}" == "true" ]]; then
         rconcli broadcast "$(get_time) Saving in 5 seconds..."
         sleep 5
         rconcli broadcast "$(get_time) Saving world..."
@@ -154,13 +154,13 @@ function create_backup() {
         broadcast_backup_failed
         ee ">>> Backup failed"
     else
-        if [[ -n $LOCAL_BACKUP_ANNOUNCE_MESSAGES_ENABLED ]] && [[ $LOCAL_BACKUP_ANNOUNCE_MESSAGES_ENABLED == "true" ]]; then
+        if [[ -n $LOCAL_BACKUP_ANNOUNCE_MESSAGES_ENABLED ]] && [[ "${LOCAL_BACKUP_ANNOUNCE_MESSAGES_ENABLED,,}" == "true" ]]; then
             broadcast_backup_success
         fi
         es ">>> Backup '${backup_file_name}' created successfully"
     fi
 
-    if [[ -n ${LOCAL_BACKUP_RETENTION_POLICY} ]] && [[ ${LOCAL_BACKUP_RETENTION_POLICY} == "true" ]] && [[ ${LOCAL_BACKUP_RETENTION_AMOUNT_TO_KEEP} =~ ^[0-9]+$ ]]; then
+    if [[ -n ${LOCAL_BACKUP_RETENTION_POLICY} ]] && [[ "${LOCAL_BACKUP_RETENTION_POLICY,,}" == "true" ]] && [[ ${LOCAL_BACKUP_RETENTION_AMOUNT_TO_KEEP} =~ ^[0-9]+$ ]]; then
         ls -1t "${LOCAL_BACKUP_PATH}"/saved-*.tar.gz | tail -n +"$(($LOCAL_BACKUP_RETENTION_AMOUNT_TO_KEEP + 1))" | xargs -d '\n' rm -f --
     fi
 }

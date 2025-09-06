@@ -8,7 +8,7 @@ source /includes/colors.sh
 # Arguments: <command>
 # Example: run_rcon_cli "showplayers"
 run_rcon_cli() {
-    if [[ -z ${RCON_ENABLED+x} ]] || [[ "$RCON_ENABLED" != "true" ]]; then
+    if [[ -z ${RCON_ENABLED+x} ]] || [[ "${RCON_ENABLED,,}" != "true" ]]; then
         ew ">>> RCON is not enabled. Aborting RCON command ..."
         exit
     fi

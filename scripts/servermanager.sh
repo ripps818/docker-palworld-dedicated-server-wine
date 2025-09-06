@@ -30,7 +30,7 @@ function start_main() {
     if [ ! -f "${GAME_ROOT}/PalServer.sh" ]; then
         fresh_install_server
     fi
-    if [ "${ALWAYS_UPDATE_ON_START}" == "true" ]; then
+    if [ "${ALWAYS_UPDATE_ON_START,,}" == "true" ]; then
         update_server
     fi
     setup_crons
@@ -50,7 +50,7 @@ do
     start_main &
     START_MAIN_PID="$!"
 
-    if [[ -n $RCON_PLAYER_DETECTION ]] && [[ $RCON_PLAYER_DETECTION == "true" ]] && [[ -n $RCON_ENABLED ]] && [[ $RCON_ENABLED == "true" ]]; then
+    if [[ -n $RCON_PLAYER_DETECTION ]] && [[ "${RCON_PLAYER_DETECTION,,}" == "true" ]] && [[ -n $RCON_ENABLED ]] && [[ "${RCON_ENABLED,,}" == "true" ]]; then
        player_detection_loop &
        PLAYER_DETECTION_PID="$!"
        echo $PLAYER_DETECTION_PID > PLAYER_DETECTION.PID
@@ -60,7 +60,7 @@ do
     ew "> Server main thread started with pid ${START_MAIN_PID}"
     wait ${START_MAIN_PID}
 
-    if [[ -n $WEBHOOK_ENABLED ]] && [[ $WEBHOOK_ENABLED == "true" ]]; then
+    if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
         send_stop_notification
     fi
     exit 0;
