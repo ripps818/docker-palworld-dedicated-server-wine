@@ -111,7 +111,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     # PalWorldSettings.ini settings
     DIFFICULTY=None \
     RANDOMIZER_TYPE=None \
-    RANDOMIZER_SEED="" \ 
+    RANDOMIZER_SEED="" \
     IS_RANDOMIZER_PAL_LEVEL_RANDOM=false \
     DAYTIME_SPEEDRATE=1.000000 \
     NIGHTTIME_SPEEDRATE=1.000000 \
@@ -208,7 +208,7 @@ COPY --from=rconclibuilder /build/gorcon /usr/local/bin/rcon
 COPY --from=supercronicverify /usr/local/bin/supercronic /usr/local/bin/supercronic
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends --no-install-suggests procps xdg-user-dirs gettext-base moreutils \
+    && apt-get install -y --no-install-recommends --no-install-suggests procps xdg-user-dirs gettext-base \
     && apt-get autoremove -y --purge \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
@@ -229,7 +229,7 @@ RUN mkdir -p "$BACKUP_PATH" \
 
 VOLUME ["${GAME_ROOT}"]
 
-HEALTHCHECK --interval=10s --timeout=10s --start-period=30s --retries=3 \ 
+HEALTHCHECK --interval=10s --timeout=10s --start-period=30s --retries=3 \
     CMD pgrep -x "PalServer-Linux" >/dev/null 2>&1 || exit 1
 
 ENTRYPOINT  ["/entrypoint.sh"]

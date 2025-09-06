@@ -47,27 +47,77 @@ function e_with_counter() {
 function setup_palworld_settings_ini() {
     ei ">>> Setting up PalWorldSettings.ini ..."
     if [ ! -d "${GAME_CONFIG_PATH}" ]; then
-        mkdir -p "${GAME_CONFIG_PATH}/"
+        mkdir -p "${GAME_CONFIG_PATH}/" || {
+            ee "Failed to create directory ${GAME_CONFIG_PATH}"
+            return 1
+        }
     fi
-    # Copy default-config, which comes with SteamCMD to gameserver save location
-    ew "> Copying PalWorldSettings.ini.template to ${GAME_SETTINGS_FILE}"
+
     # if SERVER_NAME contains ###RANDOM###, replace it now
     if [[ "${SERVER_NAME:-}" == *"###RANDOM###"* ]]; then
         # generate a 6-char alphanumeric token
-        rand="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 6)"
+        rand="$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 6)"
         export SERVER_NAME="${SERVER_NAME//###RANDOM###/${rand}}"
     fi
-    envsubst < "${PALWORLD_TEMPLATE_FILE}" > "${GAME_SETTINGS_FILE}"
+
+    # Copy default-config, which comes with SteamCMD to gameserver save location
+    ew "> Copying PalWorldSettings.ini.template to ${GAME_SETTINGS_FILE}"
+    ENVSUBST_SELECTORS='$DIFFICULTY $RANDOMIZER_TYPE $RANDOMIZER_SEED $IS_RANDOMIZER_PAL_LEVEL_RANDOM 
+        $DAYTIME_SPEEDRATE $NIGHTTIME_SPEEDRATE $EXP_RATE $PAL_CAPTURE_RATE 
+        $PAL_SPAWN_NUM_RATE $PAL_DAMAGE_RATE_ATTACK $PAL_DAMAGE_RATE_DEFENSE 
+        $PLAYER_DAMAGE_RATE_ATTACK $PLAYER_DAMAGE_RATE_DEFENSE 
+        $PLAYER_STOMACH_DECREASE_RATE $PLAYER_STAMINA_DECREACE_RATE 
+        $PLAYER_AUTO_HP_REGENE_RATE $PLAYER_AUTO_HP_REGENE_RATE_IN_SLEEP 
+        $PAL_STOMACH_DECREACE_RATE $PAL_STAMINA_DECREACE_RATE 
+        $PAL_AUTO_HP_REGENE_RATE $PAL_AUTO_HP_REGENE_RATE_IN_SLEEP 
+        $BUILD_OBJECT_HP_RATE $BUILD_OBJECT_DAMAGE_RATE 
+        $BUILD_OBJECT_DETERIORATION_DAMAGE_RATE $COLLECTION_DROP_RATE 
+        $COLLECTION_OBJECT_HP_RATE $COLLECTION_OBJECT_RESPAWN_SPEED_RATE 
+        $ENEMY_DROP_ITEM_RATE $DEATH_PENALTY $ENABLE_PLAYER_TO_PLAYER_DAMAGE 
+        $ENABLE_FRIENDLY_FIRE $ENABLE_INVADER_ENEMY $ACTIVE_UNKO 
+        $ENABLE_AIM_ASSIST_PAD $ENABLE_AIM_ASSIST_KEYBOARD $DROP_ITEM_MAX_NUM 
+        $DROP_ITEM_MAX_NUM_UNKO $BASE_CAMP_MAX_NUM $BASE_CAMP_WORKER_MAXNUM 
+        $DROP_ITEM_ALIVE_MAX_HOURS $AUTO_RESET_GUILD_NO_ONLINE_PLAYERS 
+        $AUTO_RESET_GUILD_TIME_NO_ONLINE_PLAYERS $GUILD_PLAYER_MAX_NUM 
+        $BASE_CAMP_MAX_NUM_IN_GUILD $PAL_EGG_DEFAULT_HATCHING_TIME 
+        $WORK_SPEED_RATE $AUTO_SAVE_SPAN $IS_MULTIPLAY $IS_PVP $HARDCORE 
+        $PAL_LOST $CHARACTER_RECREATE_IN_HARDCORE 
+        $CAN_PICKUP_OTHER_GUILD_DEATH_PENALTY_DROP $ENABLE_NON_LOGIN_PENALTY 
+        $ENABLE_FAST_TRAVEL $IS_START_LOCATION_SELECT_BY_MAP 
+        $EXIST_PLAYER_AFTER_LOGOUT $ENABLE_DEFENSE_OTHER_GUILD_PLAYER 
+        $INVISBIBLE_OTHER_GUILD_BASE_CAMP_AREA_FX $BUILD_AREA_LIMIT 
+        $ITEM_WEIGHT_RATE $COOP_PLAYER_MAX_NUM $MAX_PLAYERS $SERVER_NAME 
+        $SERVER_DESCRIPTION $ADMIN_PASSWORD $SERVER_PASSWORD $PUBLIC_PORT 
+        $PUBLIC_IP $RCON_ENABLED $RCON_PORT $REGION $USEAUTH $BAN_LIST_URL 
+        $RESTAPI_ENABLED $RESTAPI_PORT $SHOW_PLAYER_LIST 
+        $CHAT_POST_LIMIT_PER_MINUTE $CROSSPLAY_PLATFORMS $ENABLE_WORLD_BACKUP 
+        $LOG_FORMAT_TYPE $SUPPLY_DROP_SPAN $ENABLE_PREDATOR_BOSS_PAL 
+        $MAX_BUILDING_LIMIT_NUM $SERVER_REPLICATE_PAWN_CULL_DISTANCE 
+        $ALLOW_GLOBAL_PALBOX_EXPORT $ALLOW_GLOBAL_PALBOX_IMPORT 
+        $EQUIPMENT_DURABILITY_DAMAGE_RATE $ITEM_CONTAINER_FORCE_MARK_DIRTY_INTERVAL'
+    
+
+    if ! envsubst "$ENVSUBST_SELECTORS" < "${PALWORLD_TEMPLATE_FILE}" > "${GAME_SETTINGS_FILE}"; then
+        ee "Failed to generate ${GAME_SETTINGS_FILE}"
+        return 1
+    fi
     es ">>> Finished setting up PalWorldSettings.ini"
 }
 
 function setup_rcon_yaml () {
-    if [[ -n ${RCON_ENABLED+x} ]] && [ "$RCON_ENABLED" == "true" ] ; then
+    if [[ -n ${RCON_ENABLED+x} ]] && [[ "${RCON_ENABLED,,}" == "true" ]] ; then
         ei ">>> RCON is enabled - Setting up rcon.yaml ..."
-        if [[ -n ${RCON_PORT+x} ]]; then
-            envsubst < "$RCON_CONFIG_FILE" | sponge "$RCON_CONFIG_FILE"
+        if [[ -n ${RCON_PORT+x} ]] && [[ -n ${ADMIN_PASSWORD+x} ]]; then
+            TEMP_FILE=$(mktemp)
+            if envsubst '$RCON_PORT $ADMIN_PASSWORD' < "$RCON_CONFIG_FILE" > "$TEMP_FILE"; then
+                mv "$TEMP_FILE" "$RCON_CONFIG_FILE"
+            else
+                ee "Failed to process rcon.yaml"
+                rm -f "$TEMP_FILE"
+                return 1
+            fi
         else
-            ee "> RCON_PORT is not set, please set it for RCON functionality to work!"
+            ee "> RCON_PORT and/or ADMIN_PASSWORD are not set; please set both for RCON to work!"
         fi
         es ">>> Finished setting up 'rcon.yaml' config file"
     else
