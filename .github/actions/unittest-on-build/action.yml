@@ -55,6 +55,12 @@ runs:
 
         # Set the timezone to Germany (Central European Time)
         export TZ=Europe/Berlin
+        
+        # Source color functions
+        source ./includes/colors.sh
+
+        # Track last log position to avoid duplicate output
+        LAST_LOG_LINES=0
 
         while ! docker logs palworld-dedicated-server 2>&1 | grep -q "Setting breakpad minidump AppID"; do
           CURRENT_TIME=$(date +%s)
@@ -62,16 +68,29 @@ runs:
 
           if [ $ELAPSED_TIME -gt $TIMEOUT_SECONDS ]; then
             echo "Timeout reached. Server failed to start within $TIMEOUT_SECONDS seconds."
-            printf "\e[0;32m%s\e[0m\n" "*****Container LOGS*****"
+            es "*****Final Container LOGS*****"
             docker logs palworld-dedicated-server
             exit 1
           fi
 
-          echo "$(date '+%H:%M:%S') - Waiting for server to start..."
+          # Show current status with warning color
+          ew ">>> $(date '+%H:%M:%S') - Waiting for server to start... (${ELAPSED_TIME}s elapsed)"            
+          # Get current log lines count and show new logs if any
+          CURRENT_LOG_LINES=$(docker logs palworld-dedicated-server 2>&1 | wc -l)
+          if [ $CURRENT_LOG_LINES -gt $LAST_LOG_LINES ]; then
+            es ">>> Recent container logs"
+            es "╭─────────────────────────────────────────────────────────────────────────────────────────────────────╮"
+            docker logs palworld-dedicated-server 2>&1 | tail -n +$((LAST_LOG_LINES + 1)) | head -n $((CURRENT_LOG_LINES - LAST_LOG_LINES))
+            es "╰─────────────────────────────────────────────────────────────────────────────────────────────────────╯"
+            LAST_LOG_LINES=$CURRENT_LOG_LINES
+          fi
+          
+          echo "---"
           sleep 5
         done
-        echo "Server successfully started"
-        printf "\e[0;32m%s\e[0m\n" "*****Container LOGS*****"
+
+        echo "Server successfully started in $ELAPSED_TIME seconds"
+        es "*****Final Container LOGS*****"
         docker logs palworld-dedicated-server
 
 
