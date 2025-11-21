@@ -100,3 +100,5 @@ function start_update_check() {
       stop_server
   fi
 }
+
+start_update_check
