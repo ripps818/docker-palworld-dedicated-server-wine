@@ -237,7 +237,8 @@ RUN apt-get update \
 	gnupg \
 	xvfb \
 	zenity \
-	tzdata
+	tzdata \
+    jq
 
 # Configure locale
 RUN echo "LANG=US.UTF-8" >/etc/default/locale && \
@@ -283,6 +284,7 @@ RUN mkdir -p "$BACKUP_PATH" \
     && ln -s /scripts/backupmanager.sh /usr/local/bin/backup \
     && ln -s /scripts/rconcli.sh /usr/local/bin/rconcli \
     && ln -s /scripts/restart.sh /usr/local/bin/restart \
+    && ln -s /scripts/update.sh /usr/local/bin/update \
     && gosu --version \
     && gosu nobody true
 
