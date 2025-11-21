@@ -44,7 +44,7 @@ function start_update_check() {
 
   if [ "$updateAvailable" == false ]; then
     es "The server is up to date"
-    return 1
+    return 0
   fi
 
   if [[ $AUTO_UPDATE_COUNTDOWN =~ ^[0-9]+$ ]]; then
