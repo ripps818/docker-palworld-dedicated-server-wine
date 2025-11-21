@@ -41,8 +41,9 @@ function start_main() {
     if [ ! -f "${GAME_BIN}" ]; then
         fresh_install_server
     fi
-    if [ "${ALWAYS_UPDATE_ON_START}" == "true" ]; then
+    if [ "$ALWAYS_UPDATE_ON_START" = "true" ] || manual_update_requested; then
         update_server
+        disable_manual_update_on_next_start
     fi
 	echo "${GAME_BIN}"
     setup_crons

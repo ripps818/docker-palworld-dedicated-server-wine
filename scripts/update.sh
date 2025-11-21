@@ -87,7 +87,7 @@ function start_update_check() {
     fi
     sleep 15
 
-    update_server
+    request_manual_update_on_next_start
 
     if [[ -n "${PLAYER_DETECTION_PID}" ]]; then
       kill -SIGTERM "${PLAYER_DETECTION_PID}"
