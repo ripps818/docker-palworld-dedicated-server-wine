@@ -14,6 +14,10 @@ function setup_crons() {
         echo "${RESTART_CRON_EXPRESSION} restart" >> $APP_HOME/cronlist
         e "> Added restart cron"
     fi
+    if [[ -n ${AUTO_UPDATE_ENABLED} ]] && [[ ${AUTO_UPDATE_ENABLED} == "true" ]]; then
+      echo "${AUTO_UPDATE_CRON_EXPRESSION} update" >> $APP_HOME/cronlist
+      e "> Added auto-update cron"
+    fi
     /usr/local/bin/supercronic -passthrough-logs $APP_HOME/cronlist &
     es ">>> Supercronic started"
 }

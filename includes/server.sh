@@ -6,6 +6,22 @@ source /includes/webhook.sh
 
 wine_game_root=`winepath -w ${GAME_ROOT}`
 
+function manual_update_requested() {
+    if [[ -f "${GAME_ROOT}/.update_requested" ]]; then
+      return 0
+    fi
+
+    return 1
+}
+
+function request_manual_update_on_next_start() {
+    touch "${GAME_ROOT}/.update_requested"
+}
+
+function disable_manual_update_on_next_start() {
+  rm -f "${GAME_ROOT}/.update_requested"
+}
+
 function start_server() {
     cd "$GAME_ROOT" || exit
     setup_configs
