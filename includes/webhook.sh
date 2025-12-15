@@ -64,3 +64,6 @@ send_update_notification() {
 send_info_notification() {
   send_webhook_notification "$WEBHOOK_INFO_TITLE" "$1" "$WEBHOOK_INFO_COLOR"
 }
+send_update_check_failed_notification() {
+  send_webhook_notification "$WEBHOOK_AUTO_UPDATE_FAILED_TITLE" "$WEBHOOK_AUTO_UPDATE_FAILED_DESCRIPTION" "$WEBHOOK_AUTO_UPDATE_FAILED_COLOR"
+}
