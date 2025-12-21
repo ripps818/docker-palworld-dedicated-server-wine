@@ -19,9 +19,9 @@ RUN curl -fsSLO "$GORCON_RCONCLI_URL" \
 FROM debian:bookworm-slim AS supercronicverify
 
 # Latest releases available at https://github.com/aptible/supercronic/releases
-ENV SUPERCRONIC_URL=https://github.com/aptible/supercronic/releases/download/v0.2.29/supercronic-linux-amd64 \
+ENV SUPERCRONIC_URL=https://github.com/aptible/supercronic/releases/download/v0.2.34/supercronic-linux-amd64 \
     SUPERCRONIC=supercronic-linux-amd64 \
-    SUPERCRONIC_SHA1SUM=cd48d45c4b10f3f0bfdd3a57d054cd05ac96812b
+    SUPERCRONIC_SHA1SUM=e8631edc1775000d119b70fd40339a7238eece14
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends --no-install-suggests ca-certificates curl \
@@ -125,7 +125,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     # PalWorldSettings.ini settings
     DIFFICULTY=None \
     RANDOMIZER_TYPE=None \
-    RANDOMIZER_SEED="" \ 
+    RANDOMIZER_SEED="" \
     IS_RANDOMIZER_PAL_LEVEL_RANDOM=false \
     DAYTIME_SPEEDRATE=1.000000 \
     NIGHTTIME_SPEEDRATE=1.000000 \
@@ -224,6 +224,7 @@ COPY --from=supercronicverify /usr/local/bin/supercronic /usr/local/bin/supercro
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends --no-install-suggests \
+    gettext-base \
 	procps \
 	xdg-user-dirs \
 	locales \

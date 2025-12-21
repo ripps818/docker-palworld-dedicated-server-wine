@@ -30,10 +30,9 @@ function schedule_restart() {
 
     for ((counter=$countdown; counter>=1; counter--)); do
         if [[ -n $RCON_ENABLED ]] && [[ $RCON_ENABLED == "true" ]]; then
-
             if check_is_server_empty; then
                 ew ">>> Server is empty, restarting now"
-                if [[ -n $WEBHOOK_ENABLED ]] && [[ $WEBHOOK_ENABLED == "true" ]]; then
+                if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
                     send_restart_now_notification
                 fi
                 break
@@ -44,7 +43,7 @@ function schedule_restart() {
 				rconcli "broadcast $(get_time) AUTOMATIC RESTART IN $counter MINUTES"
 		    fi
         fi
-        if [[ -n $RESTART_DEBUG_OVERRIDE ]] && [[ $RESTART_DEBUG_OVERRIDE == "true" ]]; then
+        if [[ -n $RESTART_DEBUG_OVERRIDE ]] && [[ "${RESTART_DEBUG_OVERRIDE,,}" == "true" ]]; then
             sleep 1
         else
             sleep 60

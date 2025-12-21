@@ -2,6 +2,14 @@
 
 [Back to main](README.md#changelog)
 
+## 2025-09-06
+
+- Made envsubst integration complete and useful, added strtolower checks, removed obsolete moreutils package from PR,  removed trailing spaces, added more error-fallbacks in config.sh around the envsubst integration - by @jammsen (idea by @codebam) (#311)
+
+## 2025-07-18
+
+- Updated supercronic to release v0.2.34 @GlitchApotamus (#304)
+
 ## 2025-07-17
 
 - Added new config-settings for v0.6.0 @GlitchApotamus  (#301)
