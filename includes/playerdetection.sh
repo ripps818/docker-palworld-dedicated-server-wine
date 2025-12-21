@@ -171,9 +171,9 @@ announce_name_change() {
     if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
         send_info_notification "$message"
     fi
-    if [[ -n $RCON_ENABLED ]] && [[ "${RCON_ENABLED,,}" == "true" ]]; then
-        broadcast_player_name_change "${1}" "${2}"
-    fi
+    # if [[ -n $RCON_ENABLED ]] && [[ "${RCON_ENABLED,,}" == "true" ]]; then
+    #     broadcast_player_name_change "${1}" "${2}"
+    # fi
 }
 
 # Function to announce a player leave
@@ -184,7 +184,7 @@ announce_leave() {
     if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
         send_info_notification "$message"
     fi
-    if [[ -n $RCON_ENABLED ]] && [[ "${RCON_ENABLED,,}" == "true" ]]; then
-        broadcast_player_leave "${1}"
-    fi
+#     if [[ -n $RCON_ENABLED ]] && [[ "${RCON_ENABLED,,}" == "true" ]]; then
+#         broadcast_player_leave "${1}"
+#     fi
 }

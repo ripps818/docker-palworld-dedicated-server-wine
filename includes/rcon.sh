@@ -53,17 +53,17 @@ function broadcast_backup_failed() {
     rconcli broadcast "$(get_time) Backup failed"
 }
 
-function broadcast_player_join() {
-    rconcli broadcast "$(get_time) $1 joined the server"
-}
+# function broadcast_player_join() {
+#     rconcli broadcast "$(get_time) $1 joined the server"
+# }
 
 function broadcast_player_name_change() {
     rconcli broadcast "$(get_time) $1 renamed to $2"
 }
 
-function broadcast_player_leave() {
-    rconcli broadcast "$(get_time) $1 left the server"
-}
+# function broadcast_player_leave() {
+#     rconcli broadcast "$(get_time) $1 left the server"
+# }
 
 function check_is_server_empty() {
     num_players=$(rcon -c "$RCON_CONFIG_FILE" showplayers | tail -n +2 | wc -l)
