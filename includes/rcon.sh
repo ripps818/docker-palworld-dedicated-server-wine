@@ -13,24 +13,24 @@ function save_and_shutdown_server() {
 
 function broadcast_automatic_restart() {
     for ((counter=1; counter<=15; counter++)); do
-		if [[ -n $RESTART_ANNOUNCE_MESSAGES_ENABLED ]] && [[ $RESTART_ANNOUNCE_MESSAGES_ENABLED == "true" ]]; then
+		if [[ -n $RESTART_ANNOUNCE_MESSAGES_ENABLED ]] && [[ "${RESTART_ANNOUNCE_MESSAGES_ENABLED,,}" == "true" ]]; then
 			rconcli "broadcast $(get_time)-AUTOMATIC-RESTART-IN-$counter-MINUTES"
 		fi
 		sleep 1
     done
-	if [[ -n $RESTART_ANNOUNCE_MESSAGES_ENABLED ]] && [[ $RESTART_ANNOUNCE_MESSAGES_ENABLED == "true" ]]; then
+	if [[ -n $RESTART_ANNOUNCE_MESSAGES_ENABLED ]] && [[ "${RESTART_ANNOUNCE_MESSAGES_ENABLED,,}" == "true" ]]; then
 		rconcli "broadcast $(get_time) Saving world before restart..."
 	fi
     rconcli 'save'
     rconcli "broadcast $(get_time) Saving done"
-    if [[ -n $BACKUP_ANNOUNCE_MESSAGES_ENABLED ]] && [[ $BACKUP_ANNOUNCE_MESSAGES_ENABLED == "true" ]]; then
+    if [[ -n $BACKUP_ANNOUNCE_MESSAGES_ENABLED ]] && [[ "${RESTART_ANNOUNCE_MESSAGES_ENABLED,,}" == "true" ]]; then
 		rconcli "broadcast $(get_time) Creating backup"
     fi
 	rconcli "Shutdown 10"
 }
 
 function broadcast_backup_start() {
-    if [[ -n $BACKUP_ANNOUNCE_MESSAGES_ENABLED ]] && [[ $BACKUP_ANNOUNCE_MESSAGES_ENABLED == "true" ]]; then
+    if [[ -n $BACKUP_ANNOUNCE_MESSAGES_ENABLED ]] && [[ "${BACKUP_ANNOUNCE_MESSAGES_ENABLED,,}" == "true" ]]; then
         rconcli "broadcast $(get_time) Saving in 5 seconds..."
         sleep 5
         rconcli "broadcast $(get_time) Saving world..."
@@ -44,7 +44,7 @@ function broadcast_backup_start() {
 }
 
 function broadcast_backup_success() {
-	if [[ -n $BACKUP_ANNOUNCE_MESSAGES_ENABLED ]] && [[ $BACKUP_ANNOUNCE_MESSAGES_ENABLED == "true" ]]; then
+	if [[ -n $BACKUP_ANNOUNCE_MESSAGES_ENABLED ]] && [[ "${BACKUP_ANNOUNCE_MESSAGES_ENABLED,,}" == "true" ]]; then
 		rconcli "broadcast $(get_time) Backup done"
 	fi
 }

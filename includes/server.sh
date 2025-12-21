@@ -55,7 +55,7 @@ function stop_server() {
         ew ">>> Server process not found."
     else
         # Stage 1: RCON
-        if [[ -n $RCON_ENABLED ]] && [[ $RCON_ENABLED == "true" ]]; then
+        if [[ -n $RCON_ENABLED ]] && [[ "${RCON_ENABLED,,}" == "true" ]]; then
             ew ">>> Attempting graceful shutdown via RCON..."
             save_and_shutdown_server
             ew ">>> Waiting up to 20 seconds for server to shut down..."
@@ -102,7 +102,7 @@ function stop_server() {
         sleep 2
     fi
 
-    if [[ -n $WEBHOOK_ENABLED ]] && [[ $WEBHOOK_ENABLED == "true" ]]; then
+    if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
         send_stop_notification
     fi
 
