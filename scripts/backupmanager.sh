@@ -137,17 +137,29 @@ function create_backup() {
 
     mkdir -p "${LOCAL_BACKUP_PATH}"
 
-    broadcast_backup_start
+    if [[ -n $LOCAL_BACKUP_ANNOUNCE_MESSAGES_ENABLED ]] && [[ "${LOCAL_BACKUP_ANNOUNCE_MESSAGES_ENABLED,,}" == "true" ]]; then
+        rconcli broadcast "$(get_time) Saving in 5 seconds..."
+        sleep 5
+        rconcli broadcast "$(get_time) Saving world..."
+        rconcli save
+        rconcli broadcast "$(get_time) Saving done"
+        sleep 15
+        rconcli broadcast "$(get_time) Creating backup..."
+    else
+        rconcli save
+    fi
 
     if ! tar cfz "${LOCAL_BACKUP_PATH}/${backup_file_name}" -C "${LOCAL_GAME_PATH}/" --exclude "backup" "Saved" ; then
         broadcast_backup_failed
         ee ">>> Backup failed"
     else
-        broadcast_backup_success
+        if [[ -n $LOCAL_BACKUP_ANNOUNCE_MESSAGES_ENABLED ]] && [[ "${LOCAL_BACKUP_ANNOUNCE_MESSAGES_ENABLED,,}" == "true" ]]; then
+            broadcast_backup_success
+        fi
         es ">>> Backup '${backup_file_name}' created successfully"
     fi
 
-    if [[ -n ${LOCAL_BACKUP_RETENTION_POLICY} ]] && [[ ${LOCAL_BACKUP_RETENTION_POLICY} == "true" ]] && [[ ${LOCAL_BACKUP_RETENTION_AMOUNT_TO_KEEP} =~ ^[0-9]+$ ]]; then
+    if [[ -n ${LOCAL_BACKUP_RETENTION_POLICY} ]] && [[ "${LOCAL_BACKUP_RETENTION_POLICY,,}" == "true" ]] && [[ ${LOCAL_BACKUP_RETENTION_AMOUNT_TO_KEEP} =~ ^[0-9]+$ ]]; then
         ls -1t "${LOCAL_BACKUP_PATH}"/saved-*.tar.gz | tail -n +"$(($LOCAL_BACKUP_RETENTION_AMOUNT_TO_KEEP + 1))" | xargs -d '\n' rm -f --
     fi
 }

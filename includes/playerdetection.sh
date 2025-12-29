@@ -21,7 +21,7 @@ rcon_showplayers_with_retry() {
 
     for ((i=0; i<amount_of_retries; i++)); do
         command_output=$(rcon showplayers 2> /dev/null)
-        if [[ -n $RCON_PLAYER_DEBUG ]] && [[ $RCON_PLAYER_DEBUG == "true" ]]; then
+        if [[ -n $RCON_PLAYER_DEBUG ]] && [[ "${RCON_PLAYER_DEBUG,,}" == "true" ]]; then
             ew "Debug: command_output = '$command_output'"
             ew "Exitcode was: $?"
         fi
@@ -34,14 +34,14 @@ rcon_showplayers_with_retry() {
                 # root@contaierid:/home/steam/steamcmd# rcon showplayers
                 # name,playeruid,steamid
                 readarray -t current_players <<< "$(echo "$command_output" | tail -n +2)"
-                if [[ -n $RCON_PLAYER_DEBUG ]] && [[ $RCON_PLAYER_DEBUG == "true" ]]; then
+                if [[ -n $RCON_PLAYER_DEBUG ]] && [[ "${RCON_PLAYER_DEBUG,,}" == "true" ]]; then
                     ew "Debug: current_players = ${current_players[*]}"
                 fi
             else
                 # If there is no error exit code but data is missing at least 1 line, something is off
                 # therefore we shouldnt set current_players to empty?
                 # current_players=()
-                if [[ -n $RCON_PLAYER_DEBUG ]] && [[ $RCON_PLAYER_DEBUG == "true" ]]; then
+                if [[ -n $RCON_PLAYER_DEBUG ]] && [[ "${RCON_PLAYER_DEBUG,,}" == "true" ]]; then
                     ew "Debug: No player data available."
                 fi
             fi
@@ -63,7 +63,7 @@ compare_players() {
         return
     fi
 
-    if [[ -n $RCON_PLAYER_DEBUG ]] && [[ $RCON_PLAYER_DEBUG == "true" ]]; then
+    if [[ -n $RCON_PLAYER_DEBUG ]] && [[ "${RCON_PLAYER_DEBUG,,}" == "true" ]]; then
         ew "Debug: current_players = ${current_players[*]}"
     fi
     if [[ ${#current_players[@]} -eq 0 ]]; then
@@ -78,7 +78,7 @@ compare_players() {
     # fi
 
     for player_info in "${current_players[@]}"; do
-        if [[ -n $RCON_PLAYER_DEBUG ]] && [[ $RCON_PLAYER_DEBUG == "true" ]]; then
+        if [[ -n $RCON_PLAYER_DEBUG ]] && [[ "${RCON_PLAYER_DEBUG,,}" == "true" ]]; then
             ew "For-Loop-Debug: player_info = '$player_info'"
         fi
         # Extract player name, UID, and Steam ID from player info
@@ -155,10 +155,10 @@ announce_join() {
     time=$(date '+[%H:%M:%S]')
     message="Player $1 has joined the server."
     echo "${time}: $message"
-    if [[ -n $WEBHOOK_ENABLED ]] && [[ $WEBHOOK_ENABLED == "true" ]]; then
+    if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
         send_info_notification "$message"
     fi
-    if [[ -n $RCON_ENABLED ]] && [[ $RCON_ENABLED == "true" ]]; then
+    if [[ -n $RCON_ENABLED ]] && [[ "${RCON_ENABLED,,}" == "true" ]]; then
         broadcast_player_join "${1}"
     fi
 }
@@ -168,12 +168,12 @@ announce_name_change() {
     time=$(date '+[%H:%M:%S]')
     message="Player $1 has changed their name to $2."
     echo "${time}: $message"
-    if [[ -n $WEBHOOK_ENABLED ]] && [[ $WEBHOOK_ENABLED == "true" ]]; then
+    if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
         send_info_notification "$message"
     fi
-    if [[ -n $RCON_ENABLED ]] && [[ $RCON_ENABLED == "true" ]]; then
-        broadcast_player_name_change "${1}" "${2}"
-    fi
+    # if [[ -n $RCON_ENABLED ]] && [[ "${RCON_ENABLED,,}" == "true" ]]; then
+    #     broadcast_player_name_change "${1}" "${2}"
+    # fi
 }
 
 # Function to announce a player leave
@@ -181,10 +181,10 @@ announce_leave() {
     time=$(date '+[%H:%M:%S]')
     message="Player $1 has left the server."
     echo "${time}: $message"
-    if [[ -n $WEBHOOK_ENABLED ]] && [[ $WEBHOOK_ENABLED == "true" ]]; then
+    if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
         send_info_notification "$message"
     fi
-    if [[ -n $RCON_ENABLED ]] && [[ $RCON_ENABLED == "true" ]]; then
-        broadcast_player_leave "${1}"
-    fi
+#     if [[ -n $RCON_ENABLED ]] && [[ "${RCON_ENABLED,,}" == "true" ]]; then
+#         broadcast_player_leave "${1}"
+#     fi
 }

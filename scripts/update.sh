@@ -23,7 +23,7 @@ function start_update_check() {
 
   if [ "$http_code" -ne 200 ]; then
     ee "There was a problem reaching the Steam api, unable to check for updates"
-    if [[ -n $WEBHOOK_ENABLED ]] && [[ $WEBHOOK_ENABLED == "true" ]]; then
+    if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
       send_update_check_failed_notification
     fi
     rm "$temp_file"
@@ -59,18 +59,18 @@ function start_update_check() {
     if [[ -n $RCON_ENABLED ]] && [[ $RCON_ENABLED == "true" ]]; then
       if check_is_server_empty; then
           ew ">>> Server is empty, updating now"
-          if [[ -n $WEBHOOK_ENABLED ]] && [[ $WEBHOOK_ENABLED == "true" ]]; then
+          if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
               send_update_notification
           fi
           break
       else
           ew ">>> Server still has players"
       fi
-      if [[ -n $AUTO_UPDATE_ANNOUNCE_MESSAGES_ENABLED ]] && [[ $AUTO_UPDATE_ANNOUNCE_MESSAGES_ENABLED == "true" ]]; then
+      if [[ -n $AUTO_UPDATE_ANNOUNCE_MESSAGES_ENABLED ]] && [[ "${AUTO_UPDATE_ANNOUNCE_MESSAGES_ENABLED,,}" == "true" ]]; then
         rconcli "broadcast $(get_time) AUTOMATIC SERVER UPDATE AND RESTART IN $counter MINUTES"
       fi
     fi
-    if [[ -n $AUTO_UPDATE_DEBUG_OVERRIDE ]] && [[ $AUTO_UPDATE_DEBUG_OVERRIDE == "true" ]]; then
+    if [[ -n $AUTO_UPDATE_DEBUG_OVERRIDE ]] && [[ "${AUTO_UPDATE_DEBUG_OVERRIDE,,}" == "true" ]]; then
         sleep 1
     else
         sleep 60
@@ -78,12 +78,12 @@ function start_update_check() {
   done
 
   if [[ -n $RCON_ENABLED ]] && [[ $RCON_ENABLED == "true" ]]; then
-    if [[ -n $RESTART_ANNOUNCE_MESSAGES_ENABLED ]] && [[ $RESTART_ANNOUNCE_MESSAGES_ENABLED == "true" ]]; then
+    if [[ -n $RESTART_ANNOUNCE_MESSAGES_ENABLED ]] && [[ "${RESTART_ANNOUNCE_MESSAGES_ENABLED,,}" == "true" ]]; then
       rconcli "broadcast $(get_time) Saving world before update and restart..."
-    fi
-    rconcli 'save'
-    if [[ -n $RESTART_ANNOUNCE_MESSAGES_ENABLED ]] && [[ $RESTART_ANNOUNCE_MESSAGES_ENABLED == "true" ]]; then
+      rconcli 'save'
       rconcli "broadcast $(get_time) Saving done"
+    else
+      rconcli 'save'
     fi
     sleep 15
 

@@ -27,15 +27,15 @@ function start_server() {
     setup_configs
     ei ">>> Preparing to start the gameserver"
     START_OPTIONS=()
-    if [[ -n $COMMUNITY_SERVER ]] && [[ $COMMUNITY_SERVER == "true" ]]; then
+    if [[ -n $COMMUNITY_SERVER ]] && [[ "${COMMUNITY_SERVER,,}" == "true" ]]; then
         e "> Setting Community-Mode to enabled"
         START_OPTIONS+=("-publiclobby")
     fi
-    if [[ -n $MULTITHREAD_ENABLED ]] && [[ $MULTITHREAD_ENABLED == "true" ]]; then
+    if [[ -n $MULTITHREAD_ENABLED ]] && [[ "${MULTITHREAD_ENABLED,,}" == "true" ]]; then
         e "> Setting Multi-Core-Enhancements to enabled"
         START_OPTIONS+=("-useperfthreads" "-NoAsyncLoadingThread" "-UseMultithreadForDS")
     fi
-    if [[ -n $WEBHOOK_ENABLED ]] && [[ $WEBHOOK_ENABLED == "true" ]]; then
+    if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
         send_start_notification
     fi
     es ">>> Starting the gameserver"
@@ -55,7 +55,7 @@ function stop_server() {
         ew ">>> Server process not found."
     else
         # Stage 1: RCON
-        if [[ -n $RCON_ENABLED ]] && [[ $RCON_ENABLED == "true" ]]; then
+        if [[ -n $RCON_ENABLED ]] && [[ "${RCON_ENABLED,,}" == "true" ]]; then
             ew ">>> Attempting graceful shutdown via RCON..."
             save_and_shutdown_server
             ew ">>> Waiting up to 20 seconds for server to shut down..."
@@ -102,7 +102,7 @@ function stop_server() {
         sleep 2
     fi
 
-    if [[ -n $WEBHOOK_ENABLED ]] && [[ $WEBHOOK_ENABLED == "true" ]]; then
+    if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
         send_stop_notification
     fi
 
@@ -116,7 +116,7 @@ function stop_server() {
 
 function fresh_install_server() {
     ei ">>> Doing a fresh install of the gameserver..."
-    if [[ -n $WEBHOOK_ENABLED ]] && [[ $WEBHOOK_ENABLED == "true" ]]; then
+    if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
         send_install_notification
     fi
     "${WINE_BIN}" "${STEAMCMD_PATH}"/steamcmd.exe +force_install_dir "${wine_game_root}" +login anonymous +app_update 2394010 validate +quit
@@ -127,16 +127,16 @@ function update_server() {
     # Workaround fix for 0x6 error
     ei ">>> Applying workaround fix for 'Error! App '2394010' state is 0x6 after update job.' message, since update 0.3.X..."
     rm -f /palworld/steamapps/appmanifest_2394010.acf
-    if [[ -n $STEAMCMD_VALIDATE_FILES ]] && [[ $STEAMCMD_VALIDATE_FILES == "true" ]]; then
+    if [[ -n $STEAMCMD_VALIDATE_FILES ]] && [[ "${STEAMCMD_VALIDATE_FILES,,}" == "true" ]]; then
         ei ">>> Doing an update with validation of the gameserver files..."
-        if [[ -n $WEBHOOK_ENABLED ]] && [[ $WEBHOOK_ENABLED == "true" ]]; then
+        if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
             send_update_notification
         fi
         "${WINE_BIN}" "${STEAMCMD_PATH}"/steamcmd.exe +force_install_dir "${wine_game_root}" +login anonymous +app_update 2394010 validate +quit
         es ">>> Done updating and validating the gameserver files"
     else
         ei ">>> Doing an update of the gameserver files..."
-        if [[ -n $WEBHOOK_ENABLED ]] && [[ $WEBHOOK_ENABLED == "true" ]]; then
+        if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
             send_update_notification
         fi
         "${WINE_BIN}" "${STEAMCMD_PATH}"/steamcmd.exe +force_install_dir "${wine_game_root}" +login anonymous +app_update 2394010 +quit
