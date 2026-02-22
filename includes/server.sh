@@ -50,8 +50,11 @@ function fresh_install_server() {
 
 function update_server() {
     # Workaround fix for 0x6 error
-    ei ">>> Applying workaround fix for 'Error! App '2394010' state is 0x6 after update job.' message, since update 0.3.X..."
-    rm -f /palworld/steamapps/appmanifest_2394010.acf
+    ei ">>> Checking if appmainfest_2394010.acf exists, which can cause the 'Error! App '2394010' state is 0x6 after update job"
+    if [[ -f /palworld/steamapps/appmanifest_2394010.acf ]]; then
+        ei ">>> Applying workaround fix for 'Error! App '2394010' state is 0x6 after update job.' message, since update 0.3.X..."
+        rm -f /palworld/steamapps/appmanifest_2394010.acf
+    fi
     if [[ -n $STEAMCMD_VALIDATE_FILES ]] && [[ "${STEAMCMD_VALIDATE_FILES,,}" == "true" ]]; then
         ei ">>> Doing an update with validation of the gameserver files..."
         if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
