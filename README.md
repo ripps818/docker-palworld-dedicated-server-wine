@@ -2,16 +2,10 @@
 
 # Docker - Palworld Dedicated Server Wine
 
-This is a modified version of [docker-palworld-dedicated-server](https://github.com/jammsen/docker-palworld-dedicated-server) by jammsen to use the Windows version the Palworld server instead of Linux. I've tried my best to make everything else from the previous repository work in this version, but there will probably be some incompatibilities.
+This is a modified version of a linux palworld server to use the Windows version the Palworld server instead of Linux. I've tried my best to make everything else from the previous repository work in this version, but there will probably be some incompatibilities.
 ___
 
 [![Build-Status develop](https://github.com/ripps818/docker-palworld-dedicated-server-wine/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/ripps818/docker-palworld-dedicated-server-wine/actions/workflows/docker-publish.yml)
-[![Discord](https://img.shields.io/discord/532141442731212810?logo=discord&label=Discord&link=https%3A%2F%2Fdiscord.gg%2F7tacb9Q6tj)](https://discord.gg/7tacb9Q6tj)
-
-> [!TIP]
-> Do you want to chat with the community?
->
-> **[Join us on Discord](https://discord.gg/7tacb9Q6tj)**
 
 This Docker image includes a Palworld Dedicated Server based on Wine and Docker.
 
@@ -25,7 +19,6 @@ ___
   - [Requirements](#requirements)
   - [Minimum system requirements](#minimum-system-requirements)
   - [Changelog](#changelog)
-  - [Credits / Shoutout / Contributions](#credits--shoutout--contributions)
   - [Getting started](#getting-started)
   - [Installing Mods](#installing-mods)
   - [Environment variables](#environment-variables)
@@ -53,7 +46,7 @@ If you need support for this Docker image:
 - Feel free to create a new issue.
   - You can reference other issues if you're experiencing a similar problem via #issue-number.
 - Follow the instructions and answer the questions of people who are willing to help you.
-- Once your issue is resolved, please close it and please consider giving this repo and the [Docker-Hub repository](https://hub.docker.com/repository/docker/jammsen/palworld-dedicated-server) a star.
+- Once your issue is resolved, please close it and please consider giving this repo a star.
 - Please note that any issue that has been inactive for a week will be closed due to inactivity.
 
 Please avoid:
@@ -77,12 +70,6 @@ To run this Docker image, you need a basic understanding of Docker, Docker-Compo
 
 You can find the [changelog here](CHANGELOG.md)
 
-## Credits / Shoutout / Contributions
-
-This 2 persons helped a lot along to way and made me and this project better! So if you do not like my version of the Docker image or looking for other features, feel free to check out the following 2 images:
-- [@thejcpalma](https://github.com/thejcpalma) - [https://github.com/thejcpalma/palworld-dedicated-server-docker](https://github.com/thejcpalma/palworld-dedicated-server-docker) - [https://hub.docker.com/r/thejcpalma/palworld-dedicated-server](https://hub.docker.com/r/thejcpalma/palworld-dedicated-server) - ❤️🫡
-- [@thijsvanloef](https://github.com/thijsvanloef) - [https://github.com/thijsvanloef/palworld-server-docker](https://github.com/thijsvanloef/palworld-server-docker) - [https://hub.docker.com/r/thijsvanloef/palworld-server-docker](https://hub.docker.com/r/thijsvanloef/palworld-server-docker) - ❤️🫡
-
 ## Getting started
 
 1. Create a `game` sub-directory on your Docker-Node in your game-server-directory 
@@ -90,7 +77,7 @@ This 2 persons helped a lot along to way and made me and this project better! So
    - This directory will be used to store the game server files, including configs and savegames
    - In older versions we asked you to setup permissions via CHMOD or CHOWN, this should not be needed anymore!
 2. Set up Port-Forwarding or NAT for the ports in the Docker-Compose file
-3. Pull the latest version of the image with `docker pull jammsen/palworld-dedicated-server:latest`
+3. Pull the latest version of the image with `docker pull ghcr.io/ripps818/palworld-dedicated-server-wine:latest`
 4. Download the [docker-compose.yml](docker-compose.yml) and [default.env](default.env)
 5. Set up the `docker-compose.yml` and `default.env` to your liking
    - Make sure you setup PUID and PGID according to the user you want to use
@@ -136,7 +123,7 @@ $ docker exec palworld-wine-server rconcli showplayers
 name,playeruid,steamid
 
 $ docker exec palworld-wine-server rconcli info
-Welcome to Pal Server[v0.1.4.1] jammsen-docker-generated-20384
+Welcome to Pal Server[v0.1.4.1] docker-generated-20384
 
 $ docker exec palworld-wine-server rconcli save
 Complete Save
