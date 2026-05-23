@@ -2,6 +2,10 @@
 
 [Back to main](README.md#changelog)
 
+## 2026-05-23
+
+- gosu from 1.17 to 1.19 and supercronic from 0.2.34 to 0.2.45 - by @jammsen (#312)
+
 ## 2025-09-06
 
 - Made envsubst integration complete and useful, added strtolower checks, removed obsolete moreutils package from PR,  removed trailing spaces, added more error-fallbacks in config.sh around the envsubst integration - by @jammsen (idea by @codebam) (#311)

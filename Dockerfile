@@ -19,9 +19,9 @@ RUN curl -fsSLO "$GORCON_RCONCLI_URL" \
 FROM debian:bookworm-slim AS supercronicverify
 
 # Latest releases available at https://github.com/aptible/supercronic/releases
-ENV SUPERCRONIC_URL=https://github.com/aptible/supercronic/releases/download/v0.2.34/supercronic-linux-amd64 \
-    SUPERCRONIC=supercronic-linux-amd64 \
-    SUPERCRONIC_SHA1SUM=e8631edc1775000d119b70fd40339a7238eece14
+ENV SUPERCRONIC_URL=https://github.com/aptible/supercronic/releases/download/v0.2.45/supercronic-linux-amd64 \
+    SUPERCRONIC_SHA1SUM=e894b193bea75a5ee644e700c59e30eedc804cf7 \
+    SUPERCRONIC=supercronic-linux-amd64
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends --no-install-suggests ca-certificates curl \
@@ -206,6 +206,7 @@ EXPOSE 25575/tcp
 # Install minimum required packages for dedicated server
 COPY --from=rconclibuilder /build/gorcon /usr/local/bin/rcon
 COPY --from=supercronicverify /usr/local/bin/supercronic /usr/local/bin/supercronic
+COPY --from=tianon/gosu /gosu /usr/local/bin/gosu
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends --no-install-suggests procps xdg-user-dirs gettext-base \
@@ -218,14 +219,20 @@ COPY --chmod=755 scripts/ /scripts
 COPY --chmod=755 includes/ /includes
 COPY --chmod=644 configs/rcon.yaml /home/steam/steamcmd/rcon.yaml
 COPY --chmod=644 configs/PalWorldSettings.ini.template /
-COPY --chmod=755 gosu-amd64 /usr/local/bin/gosu
 
 RUN mkdir -p "$BACKUP_PATH" \
     && ln -s /scripts/backupmanager.sh /usr/local/bin/backup \
     && ln -s /scripts/rconcli.sh /usr/local/bin/rconcli \
-    && ln -s /scripts/restart.sh /usr/local/bin/restart \
-    && gosu --version \
+    && ln -s /scripts/restart.sh /usr/local/bin/restart
+
+RUN gosu --version \
     && gosu nobody true
+
+RUN rconcli --version \
+    && rcon --version
+
+RUN supercronic --version
+
 
 VOLUME ["${GAME_ROOT}"]
 
