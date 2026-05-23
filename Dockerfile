@@ -1,4 +1,4 @@
-FROM golang:1.22.0-bookworm AS rconclibuilder
+FROM golang:1.26.3-bookworm@sha256:386d475a660466863d9f8c766fec64d7fdad3edac2c6a05020c09534d71edb4b AS rconclibuilder
 
 WORKDIR /build
 
@@ -16,7 +16,7 @@ RUN curl -fsSLO "$GORCON_RCONCLI_URL" \
     && rm -Rf "$GORCON_RCONCLI_DIR" \
     && go build -v ./cmd/gorcon
 
-FROM debian:bookworm-slim AS supercronicverify
+FROM debian:bookworm-slim@sha256:0104b334637a5f19aa9c983a91b54c89887c0984081f2068983107a6f6c21eeb AS supercronicverify
 
 # Latest releases available at https://github.com/aptible/supercronic/releases
 ENV SUPERCRONIC_URL=https://github.com/aptible/supercronic/releases/download/v0.2.45/supercronic-linux-amd64 \

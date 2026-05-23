@@ -89,8 +89,8 @@ This 2 persons helped a lot along to way and made me and this project better! So
    - In older versions we asked you to setup permissions via CHMOD or CHOWN, this should not be needed anymore!
 2. Set up Port-Forwarding or NAT for the ports in the Docker-Compose file
 3. Pull the latest version of the image with `docker pull jammsen/palworld-dedicated-server:latest`
-4. Download the [docker-compose.yml](docker-compose.yml) and [default.env](default.env)
-5. Set up the `docker-compose.yml` and `default.env` to your liking
+4. Download the [compose.yml](compose.yml) and [default.env](default.env)
+5. Set up the `compose.yml` and `default.env` to your liking
    - Make sure you setup PUID and PGID according to the user you want to use
      - **PUID and PGID 0 will error out, thats on purpose!**
      - if you use Docker as root, then you can just use 1000 inside the container
@@ -107,7 +107,37 @@ See [this file](/docs/ENV_VARS.md) for the documentation
 
 ### Gameserver with RCON-CLI-Tool
 
-See [example docker-compose.yml](docker-compose.yml).
+<!-- compose-start -->
+```yaml
+services:
+  palworld-dedicated-server:
+    container_name: palworld-dedicated-server
+    image: jammsen/palworld-dedicated-server:latest
+    restart: unless-stopped
+    logging:
+      driver: "local"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    ports:
+      - target: 8211 # Gamerserver port inside of the container
+        published: 8211 # Gamerserver port on your host
+        protocol: udp
+        mode: host
+      - target: 8212 # Gameserver API port inside of the container
+        published: 8212 # Gameserver API port on your host
+        protocol: tcp
+        mode: host
+      - target: 25575 # RCON port inside of the container
+        published: 25575 # RCON port on your host
+        protocol: tcp
+        mode: host
+    env_file:
+      - ./default.env
+    volumes:
+      - ./game:/palworld
+```
+<!-- compose-end -->
 
 ## Run RCON commands
 

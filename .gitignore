@@ -2,6 +2,7 @@
 .vscode/
 game/
 test/
+compose-*.yml
 docker-compose-*.yml
 custom.env
 configs/DefaultPalWorldSettings.ini

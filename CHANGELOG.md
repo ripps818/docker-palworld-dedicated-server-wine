@@ -5,6 +5,9 @@
 ## 2026-05-23
 
 - gosu from 1.17 to 1.19 and supercronic from 0.2.34 to 0.2.45 - by @jammsen (#312)
+- Updated docker-image pinning and github-actions versions by @jammsen (#312)
+- Refactored from docker-compose.yml to new standard compose.yml including gitignore by @jammsen (#312)
+- Implemented finally a version of auto-updating the compose.yml @jahusa02 (#188)
 
 ## 2025-09-06
 
