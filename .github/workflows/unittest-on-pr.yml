@@ -1,7 +1,9 @@
 ---
 name: unit-test-component-run-on-pr
 on:
-  pull_request: # Run tests on all pull requests
+  pull_request: # Run tests on all pull requests, except those only touching CI/config files
+    paths-ignore:
+      - '.github/**'
 
 concurrency:
   group: "${{ github.workflow }} @ ${{ github.ref }}"
