@@ -136,6 +136,7 @@ services:
       - ./default.env
     volumes:
       - ./game:/palworld
+
 ```
 <!-- compose-end -->
 
