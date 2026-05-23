@@ -77,6 +77,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     RCON_PLAYER_DEBUG=false \
     RCON_PLAYER_DETECTION_STARTUP_DELAY=60 \
     RCON_PLAYER_DETECTION_CHECK_INTERVAL=15 \
+    # Custom-script-settings
+    CUSTOM_SCRIPT_ENABLED=false \
+    CUSTOM_SCRIPT_PATH="/palworld/custom-script.sh" \
     # Webhook-settings
     WEBHOOK_ENABLED=false \
     WEBHOOK_DEBUG_ENABLED=false \

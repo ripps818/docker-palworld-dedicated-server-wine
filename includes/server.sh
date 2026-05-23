@@ -4,6 +4,52 @@ source /includes/colors.sh
 source /includes/rcon.sh
 source /includes/webhook.sh
 
+function check_and_run_custom_script() {
+    if [[ -z $CUSTOM_SCRIPT_ENABLED ]] || [[ "${CUSTOM_SCRIPT_ENABLED,,}" != "true" ]]; then
+        return 0
+    fi
+
+    ei ">>> Custom script is enabled"
+
+    # Validate CUSTOM_SCRIPT_PATH is set
+    if [[ -z $CUSTOM_SCRIPT_PATH ]]; then
+        ee ">>> CUSTOM_SCRIPT_PATH is not set, skipping custom script execution"
+        return 0
+    fi
+
+    # Security: require an absolute path to prevent relative-path or injection tricks
+    if [[ "$CUSTOM_SCRIPT_PATH" != /* ]]; then
+        ee ">>> CUSTOM_SCRIPT_PATH must be an absolute path (got: '$CUSTOM_SCRIPT_PATH'), skipping"
+        return 0
+    fi
+
+    # Security: reject any path containing '..' to prevent traversal
+    if [[ "$CUSTOM_SCRIPT_PATH" == *".."* ]]; then
+        ee ">>> CUSTOM_SCRIPT_PATH must not contain '..', skipping"
+        return 0
+    fi
+
+    # Check that the target is a regular file
+    if [[ ! -f "$CUSTOM_SCRIPT_PATH" ]]; then
+        ew "> Custom script not found at '$CUSTOM_SCRIPT_PATH', skipping"
+        return 0
+    fi
+
+    ei "> Found custom script at '$CUSTOM_SCRIPT_PATH', preparing to execute"
+    chmod u+x "$CUSTOM_SCRIPT_PATH"
+
+    ei "> Executing custom script..."
+    local custom_script_exit_code=0
+    # The '||' prevents set -e from aborting on a non-zero exit so we can log it
+    "$CUSTOM_SCRIPT_PATH" || custom_script_exit_code=$?
+
+    if [[ $custom_script_exit_code -ne 0 ]]; then
+        ee ">>> Custom script exited with error code $custom_script_exit_code, continuing server startup"
+    else
+        es ">>> Custom script completed successfully"
+    fi
+}
+
 function start_server() {
     cd "$GAME_ROOT" || exit
     setup_configs
@@ -20,6 +66,8 @@ function start_server() {
     if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
         send_start_notification
     fi
+    check_and_run_custom_script
+
     es ">>> Starting the gameserver"
     ./PalServer.sh "${START_OPTIONS[@]}"
 }

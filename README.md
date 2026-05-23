@@ -16,6 +16,18 @@ This Docker image includes a Palworld Dedicated Server based on Linux and Docker
 
 ___
 
+> [!CAUTION]
+> **Public Service Announcement — Custom Script Feature**
+>
+> After many community requests, this image now supports running a custom script before the server starts.
+> This feature is entirely **opt-in** and is controlled by the `CUSTOM_SCRIPT_ENABLED` environment variable, which defaults to `false`.
+>
+> **This image will never ship with a custom script of any kind.**
+>
+> If you come across a Docker image that appears to be this one but includes a bundled custom script, please be careful — it is not this image and I have no affiliation with it.
+>
+> This feature was added at the request of the community. While I am glad to offer the option, I will not be providing support for it, and I refuse to accept **any liability** for any harm, data loss, corruption, or security issues that may result from its use. Please use it at your own discretion. — Public Service Announcement.
+
 ## Table of Contents
 
 - [Docker - Palworld Dedicated Server](#docker---palworld-dedicated-server)

@@ -8,6 +8,7 @@
 - Updated docker-image pinning and github-actions versions by @jammsen (#312)
 - Refactored from docker-compose.yml to new standard compose.yml including gitignore by @jammsen (#312)
 - Implemented finally a version of auto-updating the compose.yml @jahusa02 (#188)
+- Added the function to run a custom script, that the user can place at /palworld/custom-script - Off by default, completely opt-in and added a very explicit PSA in the README.md for it by @jammsen for @Jadiction (#273)
 
 ## 2025-09-06
 
