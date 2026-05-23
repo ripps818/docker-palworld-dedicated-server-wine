@@ -23,7 +23,10 @@ runs:
         pwd
         git --version
         docker version
-        echo "TIMEOUT_SECONDS: ${{ inputs.timeout_seconds }}"
+        free -m
+        cat /proc/cpuinfo | grep "model name"
+        echo "Repository value of TIMEOUT_SECONDS is: ${{ inputs.timeout_seconds }}"
+        echo "This should be set on develop or main branch!"
 
     - name: Run server
       shell: bash
@@ -33,6 +36,8 @@ runs:
         -p 8211:8211/udp \
         -p 8212:8212/tcp \
         -p 25575:25575/tcp \
+        -e PUID=7351 \
+        -e PGID=2431 \
         -e ADMIN_PASSWORD=123 \
         -e SERVER_PASSWORD=456 \
         -e SERVER_SETTINGS_MODE=auto \
@@ -45,27 +50,47 @@ runs:
       shell: bash
       run: |
         START_TIME=$(date +%s)
-        echo "TIMEOUT_SECONDS: ${{ inputs.timeout_seconds }}"
+        TIMEOUT_SECONDS=${{ inputs.timeout_seconds || '300' }}
+        echo "TIMEOUT_SECONDS: $TIMEOUT_SECONDS"
 
         # Set the timezone to Germany (Central European Time)
         export TZ=Europe/Berlin
+        
+        # Source color functions
+        source ./includes/colors.sh
+
+        # Track last log position to avoid duplicate output
+        LAST_LOG_LINES=0
 
         while ! docker logs palworld-dedicated-server 2>&1 | grep -q "Setting breakpad minidump AppID"; do
           CURRENT_TIME=$(date +%s)
           ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
 
-          if [ $ELAPSED_TIME -gt ${{ inputs.timeout_seconds }} ]; then
-            echo "Timeout reached. Server failed to start within ${{ inputs.timeout_seconds }} seconds."
-            printf "\e[0;32m%s\e[0m\n" "*****Container LOGS*****"
+          if [ $ELAPSED_TIME -gt $TIMEOUT_SECONDS ]; then
+            echo "Timeout reached. Server failed to start within $TIMEOUT_SECONDS seconds."
+            es "*****Final Container LOGS*****"
             docker logs palworld-dedicated-server
             exit 1
           fi
 
-          echo "$(date '+%H:%M:%S') - Waiting for server to start..."
+          # Show current status with warning color
+          ew ">>> $(date '+%H:%M:%S') - Waiting for server to start... (${ELAPSED_TIME}s elapsed)"            
+          # Get current log lines count and show new logs if any
+          CURRENT_LOG_LINES=$(docker logs palworld-dedicated-server 2>&1 | wc -l)
+          if [ $CURRENT_LOG_LINES -gt $LAST_LOG_LINES ]; then
+            es ">>> Recent container logs"
+            es "╭─────────────────────────────────────────────────────────────────────────────────────────────────────╮"
+            docker logs palworld-dedicated-server 2>&1 | tail -n +$((LAST_LOG_LINES + 1)) | head -n $((CURRENT_LOG_LINES - LAST_LOG_LINES))
+            es "╰─────────────────────────────────────────────────────────────────────────────────────────────────────╯"
+            LAST_LOG_LINES=$CURRENT_LOG_LINES
+          fi
+          
+          echo "---"
           sleep 5
         done
-        echo "Server successfully started"
-        printf "\e[0;32m%s\e[0m\n" "*****Container LOGS*****"
+
+        echo "Server successfully started in $ELAPSED_TIME seconds"
+        es "*****Final Container LOGS*****"
         docker logs palworld-dedicated-server
 
 

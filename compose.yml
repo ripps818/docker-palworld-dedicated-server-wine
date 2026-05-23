@@ -1,4 +1,3 @@
-version: '3.9'
 services:
   palworld-dedicated-server:
     container_name: palworld-dedicated-server

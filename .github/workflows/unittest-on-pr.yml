@@ -1,7 +1,9 @@
 ---
 name: unit-test-component-run-on-pr
 on:
-  pull_request: # Run tests on all pull requests
+  pull_request: # Run tests on all pull requests, except those only touching CI/config files
+    paths-ignore:
+      - '.github/**'
 
 concurrency:
   group: "${{ github.workflow }} @ ${{ github.ref }}"
@@ -19,17 +21,19 @@ jobs:
           pwd
           git --version
           docker version
-          echo "Repository value of TIMEOUT_SECONDS: ${{ vars.TIMEOUT_SECONDS }}"
+          free -m
+          cat /proc/cpuinfo | grep "model name"
+          echo "Repository value of TIMEOUT_SECONDS is: ${{ vars.TIMEOUT_SECONDS }}"
           echo "This should not be set on a PR from a different source!"
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build and export to Docker
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           file: ./Dockerfile
           load: true
@@ -43,6 +47,8 @@ jobs:
           -p 8211:8211/udp \
           -p 8212:8212/tcp \
           -p 25575:25575/tcp \
+          -e PUID=7351 \
+          -e PGID=2431 \
           -e ADMIN_PASSWORD=123 \
           -e SERVER_PASSWORD=456 \
           -e SERVER_SETTINGS_MODE=auto \
@@ -55,29 +61,47 @@ jobs:
         run: |
           START_TIME=$(date +%s)
           TIMEOUT_SECONDS=${{ vars.TIMEOUT_SECONDS || '300' }}
-          echo "TIMEOUT_SECONDS: ${{ vars.TIMEOUT_SECONDS }}"
+          echo "TIMEOUT_SECONDS: $TIMEOUT_SECONDS"
 
           # Set the timezone to Germany (Central European Time)
           export TZ=Europe/Berlin
+
+          # Source color functions
+          source ./includes/colors.sh
+          
+          # Track last log position to avoid duplicate output
+          LAST_LOG_LINES=0
 
           while ! docker logs palworld-dedicated-server 2>&1 | grep -q "Setting breakpad minidump AppID"; do
             CURRENT_TIME=$(date +%s)
             ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
 
-            if [ $ELAPSED_TIME -gt ${{ vars.TIMEOUT_SECONDS }} ]; then
-              echo "Timeout reached. Server failed to start within ${{ vars.TIMEOUT_SECONDS }} seconds."
-              printf "\e[0;32m%s\e[0m\n" "*****Container LOGS*****"
+            if [ $ELAPSED_TIME -gt $TIMEOUT_SECONDS ]; then
+              echo "Timeout reached. Server failed to start within $TIMEOUT_SECONDS seconds."
+              es "*****Final Container LOGS*****"
               docker logs palworld-dedicated-server
               exit 1
             fi
 
-            echo "$(date '+%H:%M:%S') - Waiting for server to start..."
+            # Show current status with warning color
+            ew ">>> $(date '+%H:%M:%S') - Waiting for server to start... (${ELAPSED_TIME}s elapsed)"            
+            # Get current log lines count and show new logs if any
+            CURRENT_LOG_LINES=$(docker logs palworld-dedicated-server 2>&1 | wc -l)
+            if [ $CURRENT_LOG_LINES -gt $LAST_LOG_LINES ]; then
+              es ">>> Recent container logs"
+              es "╭─────────────────────────────────────────────────────────────────────────────────────────────────────╮"
+              docker logs palworld-dedicated-server 2>&1 | tail -n +$((LAST_LOG_LINES + 1)) | head -n $((CURRENT_LOG_LINES - LAST_LOG_LINES))
+              es "╰─────────────────────────────────────────────────────────────────────────────────────────────────────╯"
+              LAST_LOG_LINES=$CURRENT_LOG_LINES
+            fi
+            
+            echo "---"
             sleep 5
           done
-          echo "Server successfully started"
-          printf "\e[0;32m%s\e[0m\n" "*****Container LOGS*****"
+          
+          echo "Server successfully started in $ELAPSED_TIME seconds"
+          es "*****Final Container LOGS*****"
           docker logs palworld-dedicated-server
-
 
       - name: Test if port 8766, 27015 and 27016 are listening
         run: |

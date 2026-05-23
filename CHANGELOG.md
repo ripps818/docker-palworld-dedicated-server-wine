@@ -2,6 +2,22 @@
 
 [Back to main](README.md#changelog)
 
+## 2026-05-23
+
+- gosu from 1.17 to 1.19 and supercronic from 0.2.34 to 0.2.45 - by @jammsen (#312)
+- Updated docker-image pinning and github-actions versions by @jammsen (#312)
+- Refactored from docker-compose.yml to new standard compose.yml including gitignore by @jammsen (#312)
+- Implemented finally a version of auto-updating the compose.yml @jahusa02 (#188)
+- Added the function to run a custom script, that the user can place at /palworld/custom-script - Off by default, completely opt-in and added a very explicit PSA in the README.md for it by @jammsen for @Jadiction (#273)
+
+## 2025-09-06
+
+- Made envsubst integration complete and useful, added strtolower checks, removed obsolete moreutils package from PR,  removed trailing spaces, added more error-fallbacks in config.sh around the envsubst integration - by @jammsen (idea by @codebam) (#311)
+
+## 2025-07-18
+
+- Updated supercronic to release v0.2.34 @GlitchApotamus (#304)
+
 ## 2025-07-17
 
 - Added new config-settings for v0.6.0 @GlitchApotamus  (#301)

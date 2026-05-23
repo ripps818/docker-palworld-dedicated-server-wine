@@ -1,4 +1,4 @@
-FROM golang:1.22.0-bookworm AS rconclibuilder
+FROM golang:1.26.3-bookworm@sha256:386d475a660466863d9f8c766fec64d7fdad3edac2c6a05020c09534d71edb4b AS rconclibuilder
 
 WORKDIR /build
 
@@ -16,12 +16,12 @@ RUN curl -fsSLO "$GORCON_RCONCLI_URL" \
     && rm -Rf "$GORCON_RCONCLI_DIR" \
     && go build -v ./cmd/gorcon
 
-FROM debian:bookworm-slim AS supercronicverify
+FROM debian:bookworm-slim@sha256:0104b334637a5f19aa9c983a91b54c89887c0984081f2068983107a6f6c21eeb AS supercronicverify
 
 # Latest releases available at https://github.com/aptible/supercronic/releases
-ENV SUPERCRONIC_URL=https://github.com/aptible/supercronic/releases/download/v0.2.29/supercronic-linux-amd64 \
-    SUPERCRONIC=supercronic-linux-amd64 \
-    SUPERCRONIC_SHA1SUM=cd48d45c4b10f3f0bfdd3a57d054cd05ac96812b
+ENV SUPERCRONIC_URL=https://github.com/aptible/supercronic/releases/download/v0.2.45/supercronic-linux-amd64 \
+    SUPERCRONIC_SHA1SUM=e894b193bea75a5ee644e700c59e30eedc804cf7 \
+    SUPERCRONIC=supercronic-linux-amd64
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends --no-install-suggests ca-certificates curl \
@@ -35,7 +35,7 @@ RUN curl -fsSLO "$SUPERCRONIC_URL" \
     && mv "$SUPERCRONIC" "/usr/local/bin/${SUPERCRONIC}" \
     && ln -s "/usr/local/bin/${SUPERCRONIC}" /usr/local/bin/supercronic
 
-FROM cm2network/steamcmd:root
+FROM cm2network/steamcmd:root@sha256:e6b6b3503bf0e41feafe12dc709c90151afba193e1292cac55d28a7d470b1493
 
 LABEL maintainer="Sebastian Schmidt - https://github.com/jammsen/docker-palworld-dedicated-server"
 LABEL org.opencontainers.image.authors="Sebastian Schmidt"
@@ -77,6 +77,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     RCON_PLAYER_DEBUG=false \
     RCON_PLAYER_DETECTION_STARTUP_DELAY=60 \
     RCON_PLAYER_DETECTION_CHECK_INTERVAL=15 \
+    # Custom-script-settings
+    CUSTOM_SCRIPT_ENABLED=false \
+    CUSTOM_SCRIPT_PATH="/palworld/custom-script.sh" \
     # Webhook-settings
     WEBHOOK_ENABLED=false \
     WEBHOOK_DEBUG_ENABLED=false \
@@ -111,7 +114,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     # PalWorldSettings.ini settings
     DIFFICULTY=None \
     RANDOMIZER_TYPE=None \
-    RANDOMIZER_SEED="" \ 
+    RANDOMIZER_SEED="" \
     IS_RANDOMIZER_PAL_LEVEL_RANDOM=false \
     DAYTIME_SPEEDRATE=1.000000 \
     NIGHTTIME_SPEEDRATE=1.000000 \
@@ -206,9 +209,10 @@ EXPOSE 25575/tcp
 # Install minimum required packages for dedicated server
 COPY --from=rconclibuilder /build/gorcon /usr/local/bin/rcon
 COPY --from=supercronicverify /usr/local/bin/supercronic /usr/local/bin/supercronic
+COPY --from=tianon/gosu /gosu /usr/local/bin/gosu
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends --no-install-suggests procps xdg-user-dirs \
+    && apt-get install -y --no-install-recommends --no-install-suggests procps xdg-user-dirs gettext-base \
     && apt-get autoremove -y --purge \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
@@ -218,18 +222,24 @@ COPY --chmod=755 scripts/ /scripts
 COPY --chmod=755 includes/ /includes
 COPY --chmod=644 configs/rcon.yaml /home/steam/steamcmd/rcon.yaml
 COPY --chmod=644 configs/PalWorldSettings.ini.template /
-COPY --chmod=755 gosu-amd64 /usr/local/bin/gosu
 
 RUN mkdir -p "$BACKUP_PATH" \
     && ln -s /scripts/backupmanager.sh /usr/local/bin/backup \
     && ln -s /scripts/rconcli.sh /usr/local/bin/rconcli \
-    && ln -s /scripts/restart.sh /usr/local/bin/restart \
-    && gosu --version \
+    && ln -s /scripts/restart.sh /usr/local/bin/restart
+
+RUN gosu --version \
     && gosu nobody true
+
+RUN rconcli --version \
+    && rcon --version
+
+RUN supercronic --version
+
 
 VOLUME ["${GAME_ROOT}"]
 
-HEALTHCHECK --interval=10s --timeout=10s --start-period=30s --retries=3 \ 
+HEALTHCHECK --interval=10s --timeout=10s --start-period=30s --retries=3 \
     CMD pgrep -x "PalServer-Linux" >/dev/null 2>&1 || exit 1
 
 ENTRYPOINT  ["/entrypoint.sh"]
