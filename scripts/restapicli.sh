@@ -90,8 +90,9 @@ run_restapicli() {
                 print_usage
                 exit 1
             fi
-            local safe_message="${*//\"/\\\"}"
-            restapi_post "announce" "{\"message\":\"${safe_message}\"}" || exit 1
+            local json_body
+            json_body=$(jq -n --arg msg "$*" '{"message": $msg}')
+            restapi_post "announce" "$json_body" || exit 1
             es "> Announced: $*"
             ;;
         kick)
@@ -102,10 +103,11 @@ run_restapicli() {
             fi
             local userid=$1; shift || true
             local message="$*"
-            local safe_message="${message//\"/\\\"}"
-            local body="{\"userid\":\"${userid}\"}"
+            local body
             if [[ -n "$message" ]]; then
-                body="{\"userid\":\"${userid}\",\"message\":\"${safe_message}\"}"
+                body=$(jq -n --arg uid "$userid" --arg msg "$message" '{"userid": $uid, "message": $msg}')
+            else
+                body=$(jq -n --arg uid "$userid" '{"userid": $uid}')
             fi
             restapi_post "kick" "$body" || exit 1
             es "> Kicked: ${userid}"
@@ -118,10 +120,11 @@ run_restapicli() {
             fi
             local userid=$1; shift || true
             local message="$*"
-            local safe_message="${message//\"/\\\"}"
-            local body="{\"userid\":\"${userid}\"}"
+            local body
             if [[ -n "$message" ]]; then
-                body="{\"userid\":\"${userid}\",\"message\":\"${safe_message}\"}"
+                body=$(jq -n --arg uid "$userid" --arg msg "$message" '{"userid": $uid, "message": $msg}')
+            else
+                body=$(jq -n --arg uid "$userid" '{"userid": $uid}')
             fi
             restapi_post "ban" "$body" || exit 1
             es "> Banned: ${userid}"
@@ -133,16 +136,19 @@ run_restapicli() {
                 exit 1
             fi
             local userid=$1
-            restapi_post "unban" "{\"userid\":\"${userid}\"}" || exit 1
+            local body
+            body=$(jq -n --arg uid "$userid" '{"userid": $uid}')
+            restapi_post "unban" "$body" || exit 1
             es "> Unbanned: ${userid}"
             ;;
         shutdown)
             local waittime=${1:-10}
             shift || true
             local message="$*"
-            local safe_message="${message//\"/\\\"}"
+            local json_body
+            json_body=$(jq -n --argjson wt "$waittime" --arg msg "$message" '{"waittime": $wt, "message": $msg}')
             ei "> Shutting down server in ${waittime}s..."
-            restapi_post "shutdown" "{\"waittime\":${waittime},\"message\":\"${safe_message}\"}" || exit 1
+            restapi_post "shutdown" "$json_body" || exit 1
             es "> Shutdown issued."
             ;;
         *)
