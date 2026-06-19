@@ -146,7 +146,9 @@ function create_backup() {
         sleep 15
         restapi_announce "$(get_time) Creating backup..."
     else
-        restapi_save
+        if [[ -n $RESTAPI_ENABLED ]] && [[ "${RESTAPI_ENABLED,,}" == "true" ]]; then
+            restapi_save
+        fi
     fi
 
 

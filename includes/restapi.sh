@@ -110,9 +110,9 @@ function save_and_shutdown_server() {
 }
 
 function broadcast_automatic_restart() {
-    for ((counter=1; counter<=15; counter++)); do
+    for ((counter=15; counter>=1; counter--)); do
         restapi_announce "$(get_time)-AUTOMATIC-RESTART-IN-${counter}-MINUTES"
-        sleep 1
+        sleep 60
     done
     restapi_announce "$(get_time) Saving world before restart..."
     restapi_save

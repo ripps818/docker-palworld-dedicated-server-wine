@@ -72,10 +72,6 @@ compare_players() {
     if [[ -n $PLAYER_DETECTION_DEBUG ]] && [[ "${PLAYER_DETECTION_DEBUG,,}" == "true" ]]; then
         ew "Debug: current_players = ${current_players[*]}"
     fi
-    if [[ ${#current_players[@]} -eq 0 ]]; then
-        e "No players currently on the server."
-        return
-    fi
 
     for player_info in "${current_players[@]}"; do
         if [[ -z "$player_info" ]]; then continue; fi
@@ -134,6 +130,10 @@ compare_players() {
             announce_leave "$old_name"
         fi
     done
+
+    if [[ ${#current_players[@]} -eq 0 ]]; then
+        e "No players currently on the server."
+    fi
 }
 
 

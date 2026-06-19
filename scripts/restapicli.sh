@@ -90,51 +90,9 @@ run_restapicli() {
                 print_usage
                 exit 1
             fi
-            local safe_message="${*/\"/\\\"}"
+            local safe_message="${*//\"/\\\"}"
             restapi_post "announce" "{\"message\":\"${safe_message}\"}" || exit 1
             es "> Announced: $*"
-            ;;
-        kick)
-            if [[ $# -lt 1 ]]; then
-                ee ">>> Missing userid argument for 'kick'"
-                print_usage
-                exit 1
-            fi
-            local userid=$1; shift || true
-            local message="$*"
-            local safe_message="${message//\"/\\\"}"
-            local body="{\"userid\":\"${userid}\"}"
-            if [[ -n "$message" ]]; then
-                body="{\"userid\":\"${userid}\",\"message\":\"${safe_message}\"}"
-            fi
-            restapi_post "kick" "$body" || exit 1
-            es "> Kicked: ${userid}"
-            ;;
-        ban)
-            if [[ $# -lt 1 ]]; then
-                ee ">>> Missing userid argument for 'ban'"
-                print_usage
-                exit 1
-            fi
-            local userid=$1; shift || true
-            local message="$*"
-            local safe_message="${message//\"/\\\"}"
-            local body="{\"userid\":\"${userid}\"}"
-            if [[ -n "$message" ]]; then
-                body="{\"userid\":\"${userid}\",\"message\":\"${safe_message}\"}"
-            fi
-            restapi_post "ban" "$body" || exit 1
-            es "> Banned: ${userid}"
-            ;;
-        unban)
-            if [[ $# -lt 1 ]]; then
-                ee ">>> Missing userid argument for 'unban'"
-                print_usage
-                exit 1
-            fi
-            local userid=$1
-            restapi_post "unban" "{\"userid\":\"${userid}\"}" || exit 1
-            es "> Unbanned: ${userid}"
             ;;
         kick)
             if [[ $# -lt 1 ]]; then
