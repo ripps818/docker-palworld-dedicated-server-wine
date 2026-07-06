@@ -1,0 +1,22 @@
+version: 2
+
+updates:
+  - package-ecosystem: "docker"
+    directories:
+      - "/"
+    schedule:
+      interval: "weekly"
+    patterns: ["*"]
+    multi-ecosystem-group: "all-dependencies"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    patterns: ["*"]
+    multi-ecosystem-group: "all-dependencies"
+
+multi-ecosystem-groups:
+  all-dependencies:
+    schedule:
+      interval: "weekly"

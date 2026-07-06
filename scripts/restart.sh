@@ -29,7 +29,7 @@ function schedule_restart() {
 	fi
 
     for ((counter=$countdown; counter>=1; counter--)); do
-        if [[ -n $RCON_ENABLED ]] && [[ "${RCON_ENABLED,,}" == "true" ]]; then
+        if [[ -n $RESTAPI_ENABLED ]] && [[ "${RESTAPI_ENABLED,,}" == "true" ]]; then
             if check_is_server_empty; then
                 ew ">>> Server is empty, restarting now"
                 if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
@@ -39,9 +39,9 @@ function schedule_restart() {
             else
                 ew ">>> Server has still players"
             fi
-			if [[ -n $RESTART_ANNOUNCE_MESSAGES_ENABLED ]] && [[ "${RESTART_ANNOUNCE_MESSAGES_ENABLED,,}" == "true" ]]; then
-				rconcli "broadcast $(get_time) AUTOMATIC RESTART IN $counter MINUTES"
-		    fi
+            if [[ -n $RESTART_ANNOUNCE_MESSAGES_ENABLED ]] && [[ "${RESTART_ANNOUNCE_MESSAGES_ENABLED,,}" == "true" ]]; then
+                restapi_announce "$(get_time) AUTOMATIC RESTART IN $counter MINUTES"
+            fi
         fi
         if [[ -n $RESTART_DEBUG_OVERRIDE ]] && [[ "${RESTART_DEBUG_OVERRIDE,,}" == "true" ]]; then
             sleep 1
@@ -50,20 +50,19 @@ function schedule_restart() {
         fi
     done
 
-    if [[ -n $RCON_ENABLED ]] && [[ $RCON_ENABLED == "true" ]]; then
+    if [[ -n $RESTAPI_ENABLED ]] && [[ "${RESTAPI_ENABLED,,}" == "true" ]]; then
         if [[ -n $RESTART_ANNOUNCE_MESSAGES_ENABLED ]] && [[ "${RESTART_ANNOUNCE_MESSAGES_ENABLED,,}" == "true" ]]; then
-			rconcli "broadcast $(get_time) Saving world before restart..."
-            rconcli 'save'
-            rconcli "broadcast $(get_time) Saving done"
+            restapi_announce "$(get_time) Saving world before restart..."
+            restapi_save
+            restapi_announce "$(get_time) Saving done"
         else
-            rconcli 'save'
+            restapi_save
         fi
-		sleep 15
-		if [[ -n "${PLAYER_DETECTION_PID}" ]]; then
-			kill -SIGTERM "${PLAYER_DETECTION_PID}"
-		fi
-		rconcli "Shutdown 10"
-
+        sleep 15
+        if [[ -n "${PLAYER_DETECTION_PID}" ]]; then
+            kill -SIGTERM "${PLAYER_DETECTION_PID}" 2>/dev/null
+        fi
+        restapi_shutdown 10 "$(get_time) Server restarting..."
         if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
             send_stop_notification
         fi
