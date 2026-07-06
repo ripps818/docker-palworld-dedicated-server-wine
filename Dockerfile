@@ -19,9 +19,7 @@ RUN curl -fsSLO "$SUPERCRONIC_URL" \
 
 FROM cm2network/steamcmd:root@sha256:e6b6b3503bf0e41feafe12dc709c90151afba193e1292cac55d28a7d470b1493
 
-#LABEL maintainer="Sebastian Schmidt - https://github.com/jammsen/docker-palworld-dedicated-server"
-#LABEL org.opencontainers.image.authors="Sebastian Schmidt"
-#LABEL org.opencontainers.image.source="https://github.com/jammsen/docker-palworld-dedicated-server"
+
 LABEL maintainer="Ripps - https://github.com/ripps818/docker-palworld-dedicated-server-wine"
 LABEL org.opencontainers.image.authors="Ripps"
 LABEL org.opencontainers.image.source="https://github.com/ripps818/docker-palworld-dedicated-server-wine"
@@ -115,7 +113,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     NETSERVERMAXTICKRATE=120 \
     # PalWorldSettings.ini - General Server Settings
     SERVER_NAME="wine-docker-generated-###RANDOM###" \
-    SERVER_DESCRIPTION="Palworld-Wine-Server running in Docker by jammsen and ripps" \
+    SERVER_DESCRIPTION="Palworld-Wine-Server running in Docker by ripps" \
     ADMIN_PASSWORD=adminPasswordHere \
     SERVER_PASSWORD=serverPasswordHere \
     PUBLIC_IP= \

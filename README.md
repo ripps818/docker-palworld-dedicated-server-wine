@@ -7,10 +7,6 @@ ___
 
 This Docker image includes a Palworld Dedicated Server based on Wine and Docker.
 
-> [!TIP]
-> Do you want to chat with the community?
->
-> **[Join us on Discord](https://discord.gg/7tacb9Q6tj)**
 
 ___
 
@@ -137,7 +133,7 @@ See [this file](/docs/ENV_VARS.md) for the documentation
 services:
   palworld-dedicated-server:
     container_name: palworld-dedicated-server
-    image: jammsen/palworld-dedicated-server:latest
+    image: ghcr.io/ripps818/palworld-dedicated-server-wine:latest
     restart: unless-stopped
     logging:
       driver: "local"
