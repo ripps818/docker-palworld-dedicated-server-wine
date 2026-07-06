@@ -130,10 +130,13 @@ See [this file](/docs/ENV_VARS.md) for the documentation
 
 <!-- compose-start -->
 ```yaml
+networks:
+  palworld:
+
 services:
   palworld-dedicated-server:
-    container_name: palworld-dedicated-server
-    image: ghcr.io/ripps818/palworld-dedicated-server-wine:latest
+    container_name: palworld-wine-server
+    image: ghcr.io/ripps818/docker-palworld-dedicated-server-wine:latest
     restart: unless-stopped
     logging:
       driver: "local"
@@ -145,14 +148,23 @@ services:
         published: 8211 # Gamerserver port on your host
         protocol: udp
         mode: host
-      - target: 8212 # Gameserver REST API port inside of the container
-        published: 8212 # Gameserver REST API port on your host
+      - target: 8212 # Gameserver API port inside of the container
+        published: 8212 # Gameserver API port on your host
         protocol: tcp
         mode: host
+      - target: 25575 # RCON port inside of the container
+        published: 25575 # RCON port on your host
+        protocol: tcp
+        mode: host
+      - target: 27015 # Query port inside of the container
+        published: 27015 # Query port on your host
+        protocol: tcp
     env_file:
       - ./default.env
     volumes:
       - ./game:/palworld
+    networks:
+      - palworld
 
 ```
 <!-- compose-end -->
