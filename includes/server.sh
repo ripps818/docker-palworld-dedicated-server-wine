@@ -164,31 +164,13 @@ function stop_server() {
     exit 143;
 }
 
-function bootstrap_steamcmd() {
-    if [ ! -f "${STEAMCMD_PATH}/bootstrapped" ]; then
-        ei ">>> Bootstrapping SteamCMD (first-run update)..."
-        # Run steamcmd.exe and let it update
-        "${WINE_BIN}" "${STEAMCMD_PATH}"/steamcmd.exe +quit || true
-        # Wait for any background steamcmd.exe or wineserver processes to finish updating
-        sleep 10
-        while pgrep -f "steamcmd.exe" >/dev/null; do
-            ei "... SteamCMD is still updating in background, waiting ..."
-            sleep 5
-        done
-        # Make sure wineserver is stopped/done
-        wineserver -w || true
-        touch "${STEAMCMD_PATH}/bootstrapped"
-        es ">>> SteamCMD bootstrapping completed!"
-    fi
-}
-
 function run_steamcmd() {
-    bootstrap_steamcmd
     local attempt exit_code
     for attempt in 1 2 3; do
         exit_code=0
         # The '||' prevents set -e from aborting on a non-zero exit so we can retry
-        "${WINE_BIN}" "${STEAMCMD_PATH}"/steamcmd.exe "$@" || exit_code=$?
+        # Using native Linux steamcmd forcing windows platform downloads
+        steamcmd +@sSteamCmdForcePlatformType windows "$@" || exit_code=$?
         if [[ $exit_code -eq 0 ]]; then
             return 0
         fi
@@ -205,7 +187,7 @@ function fresh_install_server() {
     if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
         send_install_notification
     fi
-    run_steamcmd +force_install_dir "${wine_game_root}" +login anonymous +app_update 2394010 validate +quit
+    run_steamcmd +force_install_dir "${GAME_ROOT}" +login anonymous +app_update 2394010 validate +quit
     es "> Done installing the gameserver"
 }
 
@@ -221,14 +203,14 @@ function update_server() {
         if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
             send_update_notification
         fi
-        run_steamcmd +force_install_dir "${wine_game_root}" +login anonymous +app_update 2394010 validate +quit
+        run_steamcmd +force_install_dir "${GAME_ROOT}" +login anonymous +app_update 2394010 validate +quit
         es ">>> Done updating and validating the gameserver files"
     else
         ei ">>> Doing an update of the gameserver files..."
         if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
             send_update_notification
         fi
-        run_steamcmd +force_install_dir "${wine_game_root}" +login anonymous +app_update 2394010 +quit
+        run_steamcmd +force_install_dir "${GAME_ROOT}" +login anonymous +app_update 2394010 +quit
         es ">>> Done updating the gameserver files"
     fi
 }
