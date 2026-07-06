@@ -305,7 +305,8 @@ RUN mkdir -p "$BACKUP_PATH" \
     && ln -s /scripts/backupmanager.sh /usr/local/bin/backup \
     && ln -s /scripts/restapicli.sh /usr/local/bin/restapicli \
     && ln -s /scripts/restart.sh /usr/local/bin/restart \
-    && ln -sf /home/steam/steamcmd/steamcmd.sh /usr/local/bin/steamcmd
+    && printf '#!/bin/bash\nexec /home/steam/steamcmd/steamcmd.sh "$@"\n' > /usr/local/bin/steamcmd \
+    && chmod 755 /usr/local/bin/steamcmd
 
 RUN gosu --version \
     && gosu nobody true
