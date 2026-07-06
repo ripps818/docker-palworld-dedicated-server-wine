@@ -291,15 +291,21 @@ RUN apt-get autoremove -y --purge \
 #RUN groupadd --gid $PGID steam
 #RUN useradd --uid $PUID --gid $PGID -M steam
 
-COPY --chmod=755 entrypoint.sh /
-COPY --chmod=755 scripts/ /scripts
-COPY --chmod=755 includes/ /includes
-COPY --chmod=644 configs/PalWorldSettings.ini.template /
+COPY entrypoint.sh /
+COPY scripts/ /scripts
+COPY includes/ /includes
+COPY configs/PalWorldSettings.ini.template /
+
+RUN chmod 755 /entrypoint.sh \
+    && chmod -R 755 /scripts \
+    && chmod -R 755 /includes \
+    && chmod 644 /PalWorldSettings.ini.template
 
 RUN mkdir -p "$BACKUP_PATH" \
     && ln -s /scripts/backupmanager.sh /usr/local/bin/backup \
     && ln -s /scripts/restapicli.sh /usr/local/bin/restapicli \
-    && ln -s /scripts/restart.sh /usr/local/bin/restart
+    && ln -s /scripts/restart.sh /usr/local/bin/restart \
+    && ln -sf /home/steam/steamcmd/steamcmd.sh /usr/local/bin/steamcmd
 
 RUN gosu --version \
     && gosu nobody true
