@@ -8,3 +8,4 @@ custom.env
 configs/DefaultPalWorldSettings.ini
 removed-features-notes.md
 docker-compose.yml
+.env
