@@ -164,7 +164,26 @@ function stop_server() {
     exit 143;
 }
 
+function bootstrap_steamcmd() {
+    if [ ! -f "${STEAMCMD_PATH}/bootstrapped" ]; then
+        ei ">>> Bootstrapping SteamCMD (first-run update)..."
+        # Run steamcmd.exe and let it update
+        "${WINE_BIN}" "${STEAMCMD_PATH}"/steamcmd.exe +quit || true
+        # Wait for any background steamcmd.exe or wineserver processes to finish updating
+        sleep 10
+        while pgrep -f "steamcmd.exe" >/dev/null; do
+            ei "... SteamCMD is still updating in background, waiting ..."
+            sleep 5
+        done
+        # Make sure wineserver is stopped/done
+        wineserver -w || true
+        touch "${STEAMCMD_PATH}/bootstrapped"
+        es ">>> SteamCMD bootstrapping completed!"
+    fi
+}
+
 function run_steamcmd() {
+    bootstrap_steamcmd
     local attempt exit_code
     for attempt in 1 2 3; do
         exit_code=0
