@@ -1,27 +1,9 @@
-FROM golang:1.22.0-bookworm AS rconclibuilder
-
-WORKDIR /build
-
-ENV CGO_ENABLED=0 \
-    GORCON_RCONCLI_URL=https://github.com/gorcon/rcon-cli/archive/refs/tags/v0.10.3.tar.gz \
-    GORCON_RCONCLI_DIR=rcon-cli-0.10.3 \
-    GORCON_RCONCLI_TGZ=v0.10.3.tar.gz \
-    GORCON_RCONCLI_TGZ_SHA1SUM=33ee8077e66bea6ee097db4d9c923b5ed390d583
-
-RUN curl -fsSLO "$GORCON_RCONCLI_URL" \
-    && echo "${GORCON_RCONCLI_TGZ_SHA1SUM}  ${GORCON_RCONCLI_TGZ}" | sha1sum -c - \
-    && tar -xzf "$GORCON_RCONCLI_TGZ" \
-    && mv "$GORCON_RCONCLI_DIR"/* ./ \
-    && rm "$GORCON_RCONCLI_TGZ" \
-    && rm -Rf "$GORCON_RCONCLI_DIR" \
-    && go build -v ./cmd/gorcon
-
-FROM debian:bookworm-slim AS supercronicverify
+FROM debian:bookworm-slim@sha256:96e378d7e6531ac9a15ad505478fcc2e69f371b10f5cdf87857c4b8188404716 AS supercronicverify
 
 # Latest releases available at https://github.com/aptible/supercronic/releases
-ENV SUPERCRONIC_URL=https://github.com/aptible/supercronic/releases/download/v0.2.34/supercronic-linux-amd64 \
-    SUPERCRONIC=supercronic-linux-amd64 \
-    SUPERCRONIC_SHA1SUM=e8631edc1775000d119b70fd40339a7238eece14
+ENV SUPERCRONIC_URL=https://github.com/aptible/supercronic/releases/download/v0.2.46/supercronic-linux-amd64 \
+    SUPERCRONIC_SHA1SUM=5bcefed628e32adc08e32634db2d10e9230dbca0 \
+    SUPERCRONIC=supercronic-linux-amd64
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends --no-install-suggests ca-certificates curl \
@@ -35,12 +17,9 @@ RUN curl -fsSLO "$SUPERCRONIC_URL" \
     && mv "$SUPERCRONIC" "/usr/local/bin/${SUPERCRONIC}" \
     && ln -s "/usr/local/bin/${SUPERCRONIC}" /usr/local/bin/supercronic
 
+FROM cm2network/steamcmd:root@sha256:e6b6b3503bf0e41feafe12dc709c90151afba193e1292cac55d28a7d470b1493
 
-FROM cm2network/steamcmd:root
 
-#LABEL maintainer="Sebastian Schmidt - https://github.com/jammsen/docker-palworld-dedicated-server"
-#LABEL org.opencontainers.image.authors="Sebastian Schmidt"
-#LABEL org.opencontainers.image.source="https://github.com/jammsen/docker-palworld-dedicated-server"
 LABEL maintainer="Ripps - https://github.com/ripps818/docker-palworld-dedicated-server-wine"
 LABEL org.opencontainers.image.authors="Ripps"
 LABEL org.opencontainers.image.source="https://github.com/ripps818/docker-palworld-dedicated-server-wine"
@@ -56,7 +35,6 @@ ENV DEBIAN_FRONTEND=noninteractive \
     GAME_SETTINGS_FILE="/palworld/Pal/Saved/Config/WindowsServer/PalWorldSettings.ini" \
     GAME_ENGINE_FILE="/palworld/Pal/Saved/Config/WindowsServer/Engine.ini" \
     STEAMCMD_PATH="/home/steam/steamcmd" \
-    RCON_CONFIG_FILE="/home/steam/steamcmd/rcon.yaml" \
     PALWORLD_TEMPLATE_FILE="/PalWorldSettings.ini.template" \
     BACKUP_PATH="/palworld/backups" \
     # Container-setttings
@@ -86,17 +64,19 @@ ENV DEBIAN_FRONTEND=noninteractive \
     RESTART_ANNOUNCE_MESSAGES_ENABLED=true \
     RESTART_DEBUG_OVERRIDE=false \
     RESTART_CRON_EXPRESSION="0 18 * * *" \
-    # AutoUpdate-settings
-    AUTO_UPDATE_ENABLED=false \
-    AUTO_UPDATE_COUNTDOWN=15 \
-    AUTO_UPDATE_ANNOUNCE_MESSAGES_ENABLED=true \
-    AUTO_UPDATE_CRON_EXPRESSION="0 * * * *" \
-    AUTO_UPDATE_DEBUG_OVERRIDE=false \
+    # Player Detection - NEEDS REST API ENABLED!
+    PLAYER_DETECTION_ENABLED=true \
+    PLAYER_DETECTION_DEBUG=false \
+    PLAYER_DETECTION_STARTUP_DELAY=60 \
+    PLAYER_DETECTION_CHECK_INTERVAL=15 \
     # RCON-Playerdetection - NEEDS RCON ENABLED!
     RCON_PLAYER_DETECTION=true \
     RCON_PLAYER_DEBUG=false \
     RCON_PLAYER_DETECTION_STARTUP_DELAY=60 \
     RCON_PLAYER_DETECTION_CHECK_INTERVAL=15 \
+    # Custom-script-settings
+    CUSTOM_SCRIPT_ENABLED=false \
+    CUSTOM_SCRIPT_PATH="/palworld/custom-script.sh" \
     # Webhook-settings
     WEBHOOK_ENABLED=false \
     WEBHOOK_DEBUG_ENABLED=false \
@@ -133,7 +113,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     NETSERVERMAXTICKRATE=120 \
     # PalWorldSettings.ini - General Server Settings
     SERVER_NAME="wine-docker-generated-###RANDOM###" \
-    SERVER_DESCRIPTION="Palworld-Wine-Server running in Docker by jammsen and ripps" \
+    SERVER_DESCRIPTION="Palworld-Wine-Server running in Docker by ripps" \
     ADMIN_PASSWORD=adminPasswordHere \
     SERVER_PASSWORD=serverPasswordHere \
     PUBLIC_IP= \
@@ -145,6 +125,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     RCON_PORT=25575 \
     RESTAPI_ENABLED=true \
     RESTAPI_PORT=8212 \
+    RESTAPI_TIMEOUT=10 \
     REGION= \
     USEAUTH=true \
     BAN_LIST_URL=https://api.palworldgame.com/api/banlist.txt \
@@ -255,8 +236,8 @@ EXPOSE 25575/tcp
 EXPOSE 27015/tcp
 
 # Install minimum required packages for dedicated server
-COPY --from=rconclibuilder /build/gorcon /usr/local/bin/rcon
 COPY --from=supercronicverify /usr/local/bin/supercronic /usr/local/bin/supercronic
+COPY --from=tianon/gosu /gosu /usr/local/bin/gosu
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends --no-install-suggests \
@@ -310,20 +291,30 @@ RUN apt-get autoremove -y --purge \
 #RUN groupadd --gid $PGID steam
 #RUN useradd --uid $PUID --gid $PGID -M steam
 
-COPY --chmod=755 entrypoint.sh /
-COPY --chmod=755 scripts/ /scripts
-COPY --chmod=755 includes/ /includes
-COPY --chmod=644 configs/rcon.yaml /home/steam/steamcmd/rcon.yaml
-COPY --chmod=644 configs/PalWorldSettings.ini.template /
-COPY --chmod=755 gosu-amd64 /usr/local/bin/gosu
+COPY entrypoint.sh /
+COPY scripts/ /scripts
+COPY includes/ /includes
+COPY configs/PalWorldSettings.ini.template /
+
+RUN chmod 755 /entrypoint.sh \
+    && chmod -R 755 /scripts \
+    && chmod -R 755 /includes \
+    && chmod 644 /PalWorldSettings.ini.template
 
 RUN mkdir -p "$BACKUP_PATH" \
     && ln -s /scripts/backupmanager.sh /usr/local/bin/backup \
-    && ln -s /scripts/rconcli.sh /usr/local/bin/rconcli \
+    && ln -s /scripts/restapicli.sh /usr/local/bin/restapicli \
     && ln -s /scripts/restart.sh /usr/local/bin/restart \
-    && ln -s /scripts/update.sh /usr/local/bin/update \
-    && gosu --version \
+    && printf '#!/bin/bash\nexec /home/steam/steamcmd/steamcmd.sh "$@"\n' > /usr/local/bin/steamcmd \
+    && chmod 755 /usr/local/bin/steamcmd
+
+RUN gosu --version \
     && gosu nobody true
+
+RUN restapicli --version
+
+RUN supercronic --version
+
 
 VOLUME ["${GAME_ROOT}"]
 

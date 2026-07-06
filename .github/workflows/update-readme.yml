@@ -1,0 +1,53 @@
+---
+name: Update README
+on:
+  push:
+    paths:
+      - 'compose.yml'
+
+jobs:
+  update_readme:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Update README
+        run: |
+          python3 - <<'EOF'
+          import re
+
+          # Read compose.yml
+          with open('compose.yml', 'r') as f:
+              compose_content = f.read()
+
+          # Wrap content in a yaml code block
+          markdown_content = '```yaml\n' + compose_content + '\n```'
+
+          # Read README.md
+          with open('README.md', 'r') as f:
+              readme_content = f.read()
+
+          # Replace the section between the markers
+          pattern = r'<!-- compose-start -->.*?<!-- compose-end -->'
+          replacement = '<!-- compose-start -->\n' + markdown_content + '\n<!-- compose-end -->'
+          new_readme = re.sub(pattern, replacement, readme_content, flags=re.DOTALL)
+
+          with open('README.md', 'w') as f:
+              f.write(new_readme)
+          EOF
+
+      - name: Commit changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add README.md
+          if git diff --quiet HEAD; then
+            echo "No changes to commit"
+          else
+            git commit -m "ci: update README with latest compose.yml content"
+            git push
+          fi

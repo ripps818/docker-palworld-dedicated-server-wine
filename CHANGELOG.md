@@ -2,6 +2,46 @@
 
 [Back to main](README.md#changelog)
 
+## 2026-07-04
+
+- Added SteamCMD self-healing via `run_steamcmd` helper in `includes/server.sh` - by @jammsen
+  - All SteamCMD calls (fresh install, update, update+validate) now retry up to 3 times on failure
+  - On each failure SteamCMD's self-update state (`steamcmd/package`) is cleared, fixing the misleading "Steamcmd needs to be online to update" crash-loop caused by corrupt update state persisting in the container's writable layer across `restart: always`
+  - After 3 failed attempts the container exits with a clear error message and lets the Docker restart policy retry with pre-cleaned state
+
+## 2026-06-19
+
+> [!WARNING]
+> **Breaking change!** This release removes RCON support entirely and replaces it with the Palworld REST API.
+> - Update your `default.env`: rename `RCON_PLAYER_DETECTION_ENABLED` → `PLAYER_DETECTION_ENABLED`, `RCON_PLAYER_DETECTION_DEBUG` → `PLAYER_DETECTION_DEBUG`, `RCON_PLAYER_DETECTION_STARTUP_DELAY` → `PLAYER_DETECTION_STARTUP_DELAY`, `RCON_PLAYER_DETECTION_CHECK_INTERVAL` → `PLAYER_DETECTION_CHECK_INTERVAL`. Add `RESTAPI_TIMEOUT=10`.
+> - Update your `compose.yml`: remove the `25575/tcp` RCON port mapping if present.
+> - Ensure `RESTAPI_ENABLED=true` and `RESTAPI_PORT=8212` are set.
+
+- Replaced deprecated RCON/gorcon tooling with the Palworld REST API - by @jammsen (closes #308)
+  - Removed `gorcon` Go binary and multi-stage Docker build stage
+  - Removed `includes/rcon.sh`, `scripts/rconcli.sh`, `configs/rcon.yaml`
+  - Added `includes/restapi.sh`: transport-layer library (`restapi_get`, `restapi_post`) and all semantic broadcast/save/shutdown helpers
+  - Added `scripts/restapicli.sh`: user-facing CLI, symlinked to `/usr/local/bin/restapicli`; commands: `info`, `players`, `metrics`, `save`, `announce`, `kick`, `ban`, `unban`, `banlist`, `shutdown`
+  - Rewrote `includes/playerdetection.sh`: player state stored as compact JSON objects, all field extraction via `jq`, Unicode player names fully supported
+  - Added `jq` as runtime dependency for JSON parsing
+  - Renamed `RCON_PLAYER_*` environment variables to `PLAYER_DETECTION_*`
+  - Added `RESTAPI_TIMEOUT` environment variable
+  - Removed RCON port (`25575/tcp`) from Docker `EXPOSE` and compose examples
+  - Changed `RCON_ENABLED` default to `false` in Dockerfile and `default.env` — RCON is deprecated by Pocketpair; the setting only affects the game server INI, not container tooling
+  - Fixed player name sanitization: strips only ASCII control characters, backslash and double-quote, preserving Chinese/Japanese/Unicode characters
+  - Added player moderation commands to `restapicli`: `kick`, `ban`, `unban` (via REST API), `banlist` (reads local ban file from disk — no REST API needed)
+  - Fixed typos in `backupmanager.sh` output strings (`out of backup N file(s)` → `out of N backup file(s)`, `backups(s)` → `backup(s)`)
+  - Fixed `-user` → `--user` in README backup manager examples
+  - Updated `docs/ENV_VARS.md`, `README.md`, and `default.env` accordingly
+
+## 2026-05-23
+
+- gosu from 1.17 to 1.19 and supercronic from 0.2.34 to 0.2.45 - by @jammsen (#312)
+- Updated docker-image pinning and github-actions versions by @jammsen (#312)
+- Refactored from docker-compose.yml to new standard compose.yml including gitignore by @jammsen (#312)
+- Implemented finally a version of auto-updating the compose.yml @jahusa02 (#188)
+- Added the function to run a custom script, that the user can place at /palworld/custom-script - Off by default, completely opt-in and added a very explicit PSA in the README.md for it by @jammsen for @Jadiction (#273)
+
 ## 2025-09-06
 
 - Made envsubst integration complete and useful, added strtolower checks, removed obsolete moreutils package from PR,  removed trailing spaces, added more error-fallbacks in config.sh around the envsubst integration - by @jammsen (idea by @codebam) (#311)
