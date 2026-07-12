@@ -1,12 +1,15 @@
-name: docker-build-and-push-prod-ci
+name: docker-build-test-image
 
 on:
-  push:
-    branches:
-      - master
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'The tag for the test Docker image'
+        required: true
+        default: 'testing'
 
 jobs:
-  docker-build-gameserver-image:
+  docker-build-test-image:
     timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
@@ -26,10 +29,6 @@ jobs:
           images: |
             ghcr.io/${{ github.repository }}
 
-      - name: Get short SHA
-        id: slug
-        run: echo "GIT_SHORT_SHA7=$(echo ${GITHUB_SHA} | cut -c1-7)" >> "$GITHUB_OUTPUT"
-
       - name: Login to GHCR
         uses: docker/login-action@v4
         with:
@@ -47,26 +46,16 @@ jobs:
       - name: Generate tags
         id: tags
         run: |
-          TAGS="ghcr.io/${{ github.repository }}:${{ steps.slug.outputs.GIT_SHORT_SHA7 }},ghcr.io/${{ github.repository }}:latest"
+          TAGS="ghcr.io/${{ github.repository }}:${{ github.event.inputs.image_tag }}"
           if [ "${{ secrets.DOCKERHUB_USERNAME }}" != "" ]; then
-            TAGS="${TAGS},${{ secrets.DOCKERHUB_USERNAME }}/palworld-dedicated-server-wine:${{ steps.slug.outputs.GIT_SHORT_SHA7 }},${{ secrets.DOCKERHUB_USERNAME }}/palworld-dedicated-server-wine:latest"
+            TAGS="${TAGS},${{ secrets.DOCKERHUB_USERNAME }}/palworld-dedicated-server-wine:${{ github.event.inputs.image_tag }}"
           fi
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
 
-      - name: Build and push the images
+      - name: Build and push the test image
         uses: docker/build-push-action@v7
         with:
           context: .
           push: true
           tags: ${{ steps.tags.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-
-      - name: Docker Hub Description (Optional)
-        if: secrets.DOCKERHUB_USERNAME != ''
-        uses: peter-evans/dockerhub-description@v5
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: ${{ secrets.DOCKERHUB_USERNAME }}/palworld-dedicated-server-wine
-          readme-filepath: ./README.md
-          enable-url-completion: true
