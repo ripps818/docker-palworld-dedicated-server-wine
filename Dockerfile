@@ -311,7 +311,7 @@ RUN mkdir -p "$BACKUP_PATH" \
     && ln -s /scripts/restapicli.sh /usr/local/bin/restapicli \
     && ln -s /scripts/restart.sh /usr/local/bin/restart \
     && ln -s /scripts/install-mods.sh /usr/local/bin/install-mods \
-    && printf '#!/bin/bash\nexec /home/steam/steamcmd/steamcmd.sh "$@"\n' > /usr/local/bin/steamcmd \
+    && printf '#!/bin/bash\nif [[ "${EUID}" -eq 0 ]]; then\n    exec gosu steam /home/steam/steamcmd/steamcmd.sh "$@"\nelse\n    exec /home/steam/steamcmd/steamcmd.sh "$@"\nfi\n' > /usr/local/bin/steamcmd \
     && chmod 755 /usr/local/bin/steamcmd
 
 RUN gosu --version \

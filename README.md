@@ -154,7 +154,7 @@ Because Palworld (AppID `1623730`) is a paid game on Steam, SteamCMD requires an
 2. **Steam Guard (Two-Factor Authentication):**
    If your account has Steam Guard enabled, SteamCMD will prompt for your 2FA code on the first run. You can authenticate interactively inside the container by running:
    ```bash
-   docker exec -it palworld-wine-server steamcmd
+   docker exec -it --user steam palworld-wine-server steamcmd
    ```
    At the `Steam>` prompt, log in manually:
    ```text
