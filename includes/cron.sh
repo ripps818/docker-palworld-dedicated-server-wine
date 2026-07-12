@@ -18,6 +18,10 @@ function setup_crons() {
       echo "${AUTO_UPDATE_CRON_EXPRESSION} update" >> $APP_HOME/cronlist
       e "> Added auto-update cron"
     fi
+    if [[ -n ${WORKSHOP_MOD_UPDATE_CRON:-} ]]; then
+        echo "${WORKSHOP_MOD_UPDATE_CRON} /scripts/install-mods.sh" >> $APP_HOME/cronlist
+        e "> Added workshop mods auto-update cron"
+    fi
     /usr/local/bin/supercronic -passthrough-logs $APP_HOME/cronlist &
     es ">>> Supercronic started"
 }

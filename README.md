@@ -111,16 +111,56 @@ You can find the [changelog here](CHANGELOG.md)
 
 ## Installing Mods
 
-This Palword Windows server is capable of running the UE4SS framework to install mods.
-1. Download the latest version of [UE4SS 3.0.0 or newer](https://github.com/UE4SS-RE/RE-UE4SS/releases)
-2. Unzip into ./game/Pal/Binaries/Win64 (assuming that ./game/ is where /palworld from the container is bound in your host)
-3. Edit UE4SS-settings.ini for the following settings:
-   
+This Palworld Windows server supports installing mods manually (via UE4SS) or automatically via the Steam Workshop.
+
+### Automatic Mods via Steam Workshop
+
+Palworld Dedicated Server supports automatic mod installation and updates directly from the Steam Workshop. Mods sourced this way (including UE4SS itself, if published on the Workshop with the appropriate InstallRules) are deployed automatically by the server's own mod-manifest system on startup or restart. You do **not** need to manually download or place files into the game directories.
+
+#### Configuration
+You can specify which Workshop mods to install using either environment variables or a configuration file:
+
+1. **Via Environment Variable:**
+   Set the `WORKSHOP_MOD_IDS` environment variable to a comma-separated list of Published File IDs:
+   ```yaml
+   environment:
+     - WORKSHOP_MOD_IDS=3142718104,3142718105
    ```
+2. **Via Config File:**
+   Create a file named `workshop-mods.txt` in the root of your bind-mounted game directory (e.g., `./game/workshop-mods.txt`).
+   Add one Published File ID per line. Lines starting with `#` are treated as comments and blank lines are ignored:
+   ```text
+   # My Favorite Mods
+   3142718104
+   3142718105
+   ```
+
+*Note: If both sources are populated, the lists are merged and deduplicated.*
+
+#### How to Find a Mod's Published File ID
+Go to the Palworld Steam Workshop page, find a mod you want to install, and look at its URL. The ID is the number at the end of the `?id=` parameter:
+- **URL:** `https://steamcommunity.com/sharedfiles/filedetails/?id=3142718104`
+- **ID:** `3142718104`
+
+#### Automatic Update Checks
+By default, the container checks for mod updates every 6 hours via the `WORKSHOP_MOD_UPDATE_CRON` environment variable (`0 */6 * * *`). 
+- When an update is detected, the container uses the REST API to broadcast warnings to connected players, save the world, shut down safely, and restart.
+- You can change the cron schedule by setting `WORKSHOP_MOD_UPDATE_CRON` to a different cron expression, or set it to empty (`""`) to disable periodic checks (mods will still be installed/updated once at container startup).
+
+---
+
+### Manual Mod Installation (UE4SS)
+
+If you prefer to install mods manually or have mods not available on the Steam Workshop, you can install the UE4SS framework:
+
+1. Download the latest version of [UE4SS 3.0.0 or newer](https://github.com/UE4SS-RE/RE-UE4SS/releases)
+2. Unzip it into `./game/Pal/Binaries/Win64` (assuming `./game/` is the host directory bound to `/palworld` in the container)
+3. Edit `UE4SS-settings.ini` to configure the following settings:
+   ```ini
    bUseUObjectArrayCache = false
    GuiConsoleEnabled = 0
    ```
-5. Install mods into the Mods folder and follow the install instructions for each mod. It might require editing mods.txt or installing parts of the mod into the generated LogicMods folder.
+4. Install mods into the `Mods` folder and follow the installation instructions for each mod. Some mods may require editing `mods.txt` or installing parts of the mod into the generated LogicMods folder.
 
 ## Environment variables
 

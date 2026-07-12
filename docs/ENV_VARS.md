@@ -42,6 +42,8 @@ These settings control the behavior of the Docker container:
 | RCON_PLAYER_DETECTION_CHECK_INTERVAL  | (Legacy) Interval in seconds to wait for next check in the infinite loop                                                                           | 15                             | Integer                               |
 | CUSTOM_SCRIPT_ENABLED                | Set to enabled will execute a custom script before the gameserver starts, see `CUSTOM_SCRIPT_PATH`                                                  | false                          | Boolean                               |
 | CUSTOM_SCRIPT_PATH                   | Absolute path to the custom script to execute; the file must exist at container runtime (e.g. mounted via a volume)                                 | /palworld/custom-script.sh     | String (absolute path)                |
+| WORKSHOP_MOD_IDS                      | Comma-separated list of Steam Workshop Published File IDs to install/update. Can be combined with `workshop-mods.txt`.                               |                                | String                                |
+| WORKSHOP_MOD_UPDATE_CRON              | Cron expression to schedule automatic workshop mod update checks. Set to empty to disable periodic checks.                                          | `0 */6 * * *` (every 6 hours)  | Cron-Expression                       |
 | WEBHOOK_ENABLED                       | Set to enabled will send webhook notifications, NEEDS `WEBHOOK_URL`                                                                                 | false                          | Boolean                               |
 | WEBHOOK_DEBUG_ENABLED                 | Set to enabled will enable feedback of curl and not use --silent                                                                                    | false                          | Boolean                               |
 | WEBHOOK_URL                           | Defines the url the webhook to send data to                                                                                                         |                                | Url                                   |
@@ -56,6 +58,16 @@ SERVER_SETTINGS_MODE accepts 2 values:
 - `auto`: Settings are modified only by environment variables, manual edits will be ignored
 - `rcononly`: RCON-Settings are modified by environment variables (RCON_ENABLED, RCON_PORT, ADMIN_PASSWORD), everything else has to be done by editing the file directly, other environment variables are ignored. Note: RCON is deprecated by Pocketpair — prefer `auto` mode.
 - `manual`: Settings are modified only by editing the file directly, environment variables are ignored
+
+### Steam Workshop Mod Settings
+
+The container can automatically download, deploy, and update Steam Workshop mods.
+
+- **`WORKSHOP_MOD_IDS`**: A comma-separated list of Published File IDs (e.g., `3142718104,3142718105`).
+- **`WORKSHOP_MOD_UPDATE_CRON`**: Cron expression for automatic update checks. By default, it runs every 6 hours (`0 */6 * * *`). Set it to empty to disable periodic checks (mods will still be installed/updated once at container startup).
+- **`workshop-mods.txt`**: As a file-based alternative, you can create a file named `workshop-mods.txt` in the root of the game volume (i.e., `/palworld/workshop-mods.txt`). Add one Published File ID per line. Blank lines and lines starting with `#` are ignored. 
+
+If you use both `WORKSHOP_MOD_IDS` and `workshop-mods.txt`, the list of IDs from both sources is merged and deduplicated.
 
 ### Webhook environment variables
 

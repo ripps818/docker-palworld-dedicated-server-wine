@@ -77,6 +77,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     # Custom-script-settings
     CUSTOM_SCRIPT_ENABLED=false \
     CUSTOM_SCRIPT_PATH="/palworld/custom-script.sh" \
+    # Workshop-mod-settings
+    WORKSHOP_MOD_IDS="" \
+    WORKSHOP_MOD_UPDATE_CRON="0 */6 * * *" \
     # Webhook-settings
     WEBHOOK_ENABLED=false \
     WEBHOOK_DEBUG_ENABLED=false \
@@ -305,6 +308,7 @@ RUN mkdir -p "$BACKUP_PATH" \
     && ln -s /scripts/backupmanager.sh /usr/local/bin/backup \
     && ln -s /scripts/restapicli.sh /usr/local/bin/restapicli \
     && ln -s /scripts/restart.sh /usr/local/bin/restart \
+    && ln -s /scripts/install-mods.sh /usr/local/bin/install-mods \
     && printf '#!/bin/bash\nexec /home/steam/steamcmd/steamcmd.sh "$@"\n' > /usr/local/bin/steamcmd \
     && chmod 755 /usr/local/bin/steamcmd
 

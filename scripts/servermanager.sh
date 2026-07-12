@@ -45,6 +45,12 @@ function start_main() {
         update_server
         disable_manual_update_on_next_start
     fi
+
+    # Run the mods installer script
+    if [[ -f "/scripts/install-mods.sh" ]]; then
+        /scripts/install-mods.sh || ew ">>> Mod installation encountered errors, continuing startup..."
+    fi
+
 	echo "${GAME_BIN}"
     setup_crons
     start_server

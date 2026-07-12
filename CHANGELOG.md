@@ -2,6 +2,15 @@
 
 [Back to main](README.md#changelog)
 
+## 2026-07-11
+
+- Added automatic Steam Workshop mod installation and update support - by @ripps818
+  - Added `scripts/install-mods.sh` to download/update workshop mods in a single batch, deploy them to `Mods/Workshop/<id>`, parse `Info.json` `PackageName` to update `ActiveModList` in `PalModSettings.ini`, and gracefully trigger saves and restarts using the REST API
+  - Added support for `WORKSHOP_MOD_IDS` (comma-separated environment variable) and `workshop-mods.txt` (file-based list inside `/palworld` game root)
+  - Added periodic mod checks via `WORKSHOP_MOD_UPDATE_CRON` (default every 6 hours) using Supercronic
+  - Added state tracking file `.workshop-mods-state.json` to prevent unnecessary restarts when no updates are available
+  - Symlinked `install-mods.sh` to `/usr/local/bin/install-mods` inside the container for convenience
+
 ## 2026-07-04
 
 - Added SteamCMD self-healing via `run_steamcmd` helper in `includes/server.sh` - by @jammsen
