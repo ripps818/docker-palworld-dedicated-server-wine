@@ -6,7 +6,7 @@ on:
       image_tag:
         description: 'The tag for the test Docker image'
         required: true
-        default: 'testing'
+        default: 'test'
 
 jobs:
   docker-build-test-image:
@@ -36,26 +36,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Login to Docker Hub (Optional)
-        if: secrets.DOCKERHUB_USERNAME != ''
-        uses: docker/login-action@v4
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Generate tags
-        id: tags
-        run: |
-          TAGS="ghcr.io/${{ github.repository }}:${{ github.event.inputs.image_tag }}"
-          if [ "${{ secrets.DOCKERHUB_USERNAME }}" != "" ]; then
-            TAGS="${TAGS},${{ secrets.DOCKERHUB_USERNAME }}/palworld-dedicated-server-wine:${{ github.event.inputs.image_tag }}"
-          fi
-          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
-
       - name: Build and push the test image
         uses: docker/build-push-action@v7
         with:
           context: .
           push: true
-          tags: ${{ steps.tags.outputs.tags }}
+          tags: ghcr.io/${{ github.repository }}:${{ github.event.inputs.image_tag }}
           labels: ${{ steps.meta.outputs.labels }}
