@@ -117,35 +117,23 @@ fi
 deployed_paks=()
 deployed_ue4ss_files=()
 
-# 4. Deploy mods into Mods/Workshop/
-workshop_dir="${mods_base_dir}/Workshop"
-mkdir -p "$workshop_dir"
-
-for id in "${unique_ids[@]}"; do
-    # Try different potential SteamCMD download paths to ensure compatibility
-    src_dir="/home/steam/Steam/steamapps/workshop/content/1623730/${id}"
-    if [[ ! -d "$src_dir" ]]; then
-        src_dir="/home/steam/.steam/steam/steamapps/workshop/content/1623730/${id}"
-    fi
-    if [[ ! -d "$src_dir" ]]; then
-        src_dir="/home/steam/.local/share/Steam/steamapps/workshop/content/1623730/${id}"
-    fi
-    
-    dest_dir="${workshop_dir}/${id}"
+# Function to deploy a mod folder (handles LogicMods, UE4SS, and copy operations)
+deploy_mod_folder() {
+    local src_dir="$1"
+    local dest_dir="$2"
     
     if [[ -d "$src_dir" ]]; then
-        ei "Deploying mod $id..."
         # Replace existing copy
         rm -rf "$dest_dir"
         mkdir -p "$dest_dir"
         cp -r "$src_dir"/. "$dest_dir"/
 
         # 4a. Handle Logic Mods (.pak files)
-        logic_mods_dir="${GAME_ROOT}/Pal/Content/Paks/LogicMods"
+        local logic_mods_dir="${GAME_ROOT}/Pal/Content/Paks/LogicMods"
         mkdir -p "$logic_mods_dir"
         while read -r pak_file; do
             if [[ -f "$pak_file" ]]; then
-                pak_name=$(basename "$pak_file")
+                local pak_name=$(basename "$pak_file")
                 ei "  Found logic mod: $pak_name. Deploying to LogicMods..."
                 cp -f "$pak_file" "$logic_mods_dir/"
                 chown steam:steam "$logic_mods_dir/$pak_name" 2>/dev/null || true
@@ -183,12 +171,52 @@ for id in "${unique_ids[@]}"; do
             cp -r "${dest_dir}/Mods"/. "${mods_base_dir}"/
             chown -R steam:steam "${mods_base_dir}" 2>/dev/null || true
         fi
+    fi
+}
+
+# 4. Deploy Workshop mods into Mods/Workshop/
+workshop_dir="${mods_base_dir}/Workshop"
+mkdir -p "$workshop_dir"
+
+for id in "${unique_ids[@]}"; do
+    # Try different potential SteamCMD download paths to ensure compatibility
+    src_dir="/home/steam/Steam/steamapps/workshop/content/1623730/${id}"
+    if [[ ! -d "$src_dir" ]]; then
+        src_dir="/home/steam/.steam/steam/steamapps/workshop/content/1623730/${id}"
+    fi
+    if [[ ! -d "$src_dir" ]]; then
+        src_dir="/home/steam/.local/share/Steam/steamapps/workshop/content/1623730/${id}"
+    fi
+    
+    dest_dir="${workshop_dir}/${id}"
+    
+    if [[ -d "$src_dir" ]]; then
+        ei "Deploying Workshop mod $id..."
+        deploy_mod_folder "$src_dir" "$dest_dir"
     else
         ew "Warning: Workshop mod $id was not found at $src_dir. Download might have failed."
     fi
 done
 
-# 4. Parse deployed mod's Info.json and rewrite ActiveModList in PalModSettings.ini
+# Deploy native/manual mods from /palworld/Mods/NativeMods
+native_mods_dir="${GAME_ROOT}/Mods/NativeMods"
+mkdir -p "$native_mods_dir" 2>/dev/null || true
+chown steam:steam "$native_mods_dir" 2>/dev/null || true
+
+native_mod_names=()
+if [[ -d "$native_mods_dir" ]]; then
+    for mod_path in "$native_mods_dir"/*; do
+        if [[ -d "$mod_path" ]]; then
+            mod_name=$(basename "$mod_path")
+            ei "Deploying Native mod $mod_name..."
+            dest_dir="${mods_base_dir}/${mod_name}"
+            deploy_mod_folder "$mod_path" "$dest_dir"
+            native_mod_names+=("$mod_name")
+        fi
+    done
+fi
+
+# 4c. Parse deployed mod's Info.json and rewrite ActiveModList in PalModSettings.ini
 active_packages=()
 for id in "${unique_ids[@]}"; do
     info_json="${workshop_dir}/${id}/Info.json"
@@ -201,6 +229,20 @@ for id in "${unique_ids[@]}"; do
         fi
     else
         ew "Warning: Deployed mod ID $id Info.json not found."
+    fi
+done
+
+for mod_name in "${native_mod_names[@]}"; do
+    info_json="${mods_base_dir}/${mod_name}/Info.json"
+    if [[ -f "$info_json" ]]; then
+        pkg_name=$(jq -r '.PackageName // empty' "$info_json" 2>/dev/null || true)
+        if [[ -n "$pkg_name" && "$pkg_name" != "null" ]]; then
+            active_packages+=("$pkg_name")
+        else
+            active_packages+=("$mod_name")
+        fi
+    else
+        active_packages+=("$mod_name")
     fi
 done
 
@@ -267,6 +309,16 @@ for id in "${unique_ids[@]}"; do
         versions_json=$(echo "$versions_json" | jq --arg id "$id" --arg ver "$version" '. + {($id): $ver}')
     else
         versions_json=$(echo "$versions_json" | jq --arg id "$id" '. + {($id): "missing"}')
+    fi
+done
+
+for mod_name in "${native_mod_names[@]}"; do
+    info_json="${mods_base_dir}/${mod_name}/Info.json"
+    if [[ -f "$info_json" ]]; then
+        version=$(jq -r '.Version // "unknown"' "$info_json" 2>/dev/null || echo "unknown")
+        versions_json=$(echo "$versions_json" | jq --arg id "native_${mod_name}" --arg ver "$version" '. + {($id): $ver}')
+    else
+        versions_json=$(echo "$versions_json" | jq --arg id "native_${mod_name}" '. + {($id): "exists"}')
     fi
 done
 
