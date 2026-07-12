@@ -23,6 +23,10 @@ fi
 GAME_ROOT="${GAME_ROOT:-/palworld}"
 STEAMCMD_PATH="${STEAMCMD_PATH:-/home/steam/steamcmd}"
 
+# Locate the game's executable directory and the Mods base directory
+bin_dir=$(dirname "${GAME_BIN:-/palworld/Pal/Binaries/Win64/PalServer-Win64-Shipping-Cmd.exe}")
+mods_base_dir="${bin_dir}/Mods"
+
 # 1. Mod ID sources: WORKSHOP_MOD_IDS (env) and /palworld/workshop-mods.txt
 mod_ids=()
 
@@ -91,8 +95,30 @@ if [[ ${#unique_ids[@]} -gt 0 ]]; then
     fi
 fi
 
-# 3. Deploy mods into Mods/Workshop/
-workshop_dir="${GAME_ROOT}/Mods/Workshop"
+# 3. Clean up previously deployed .pak files and UE4SS DLLs/Configs to handle removed mods
+state_file="${GAME_ROOT}/.workshop-mods-state.json"
+if [[ -f "$state_file" ]]; then
+    ei "Cleaning up previously deployed files from state..."
+    # Read deployed_paks array and delete each file
+    jq -r '.deployed_paks[] // empty' "$state_file" 2>/dev/null | while read -r pak; do
+        if [[ -n "$pak" ]]; then
+            rm -f "${GAME_ROOT}/Pal/Content/Paks/LogicMods/${pak}"
+        fi
+    done
+    # Read deployed_ue4ss_files array and delete each file
+    jq -r '.deployed_ue4ss_files[] // empty' "$state_file" 2>/dev/null | while read -r file; do
+        if [[ -n "$file" ]]; then
+            rm -f "${bin_dir}/${file}"
+        fi
+    done
+fi
+
+# Arrays to keep track of currently deployed files for the new state
+deployed_paks=()
+deployed_ue4ss_files=()
+
+# 4. Deploy mods into Mods/Workshop/
+workshop_dir="${mods_base_dir}/Workshop"
 mkdir -p "$workshop_dir"
 
 for id in "${unique_ids[@]}"; do
@@ -113,6 +139,50 @@ for id in "${unique_ids[@]}"; do
         rm -rf "$dest_dir"
         mkdir -p "$dest_dir"
         cp -r "$src_dir"/. "$dest_dir"/
+
+        # 4a. Handle Logic Mods (.pak files)
+        logic_mods_dir="${GAME_ROOT}/Pal/Content/Paks/LogicMods"
+        mkdir -p "$logic_mods_dir"
+        while read -r pak_file; do
+            if [[ -f "$pak_file" ]]; then
+                pak_name=$(basename "$pak_file")
+                ei "  Found logic mod: $pak_name. Deploying to LogicMods..."
+                cp -f "$pak_file" "$logic_mods_dir/"
+                chown steam:steam "$logic_mods_dir/$pak_name" 2>/dev/null || true
+                deployed_paks+=("$pak_name")
+            fi
+        done < <(find "$dest_dir" -type f -name "*.pak")
+
+        # 4b. Handle UE4SS framework files (dwmapi.dll, UE4SS.dll, UE4SS-settings.ini)
+        if [[ -f "${dest_dir}/dwmapi.dll" ]]; then
+            ei "  Found dwmapi.dll. Deploying..."
+            cp -f "${dest_dir}/dwmapi.dll" "${bin_dir}/"
+            chown steam:steam "${bin_dir}/dwmapi.dll" 2>/dev/null || true
+            deployed_ue4ss_files+=("dwmapi.dll")
+        elif [[ -f "${dest_dir}/UE4SS.dll" ]]; then
+            ei "  Found UE4SS.dll. Deploying and copying to dwmapi.dll..."
+            cp -f "${dest_dir}/UE4SS.dll" "${bin_dir}/dwmapi.dll"
+            cp -f "${dest_dir}/UE4SS.dll" "${bin_dir}/UE4SS.dll"
+            chown steam:steam "${bin_dir}/dwmapi.dll" "${bin_dir}/UE4SS.dll" 2>/dev/null || true
+            deployed_ue4ss_files+=("dwmapi.dll" "UE4SS.dll")
+        fi
+
+        # Check for other dlls or settings
+        for file in "UE4SS-settings.ini" "Vindsent.dll"; do
+            if [[ -f "${dest_dir}/${file}" ]]; then
+                ei "  Found UE4SS file: $file. Deploying..."
+                cp -f "${dest_dir}/${file}" "${bin_dir}/"
+                chown steam:steam "${bin_dir}/${file}" 2>/dev/null || true
+                deployed_ue4ss_files+=("$file")
+            fi
+        done
+
+        # If this is a UE4SS mod with a Mods folder, copy its contents to Mods directory
+        if [[ -d "${dest_dir}/Mods" ]]; then
+            ei "  Found UE4SS Mods folder. Deploying contents to ${mods_base_dir}..."
+            cp -r "${dest_dir}/Mods"/. "${mods_base_dir}"/
+            chown -R steam:steam "${mods_base_dir}" 2>/dev/null || true
+        fi
     else
         ew "Warning: Workshop mod $id was not found at $src_dir. Download might have failed."
     fi
@@ -134,7 +204,7 @@ for id in "${unique_ids[@]}"; do
     fi
 done
 
-ini_file="${GAME_ROOT}/Mods/PalModSettings.ini"
+ini_file="${mods_base_dir}/PalModSettings.ini"
 if [[ -f "$ini_file" ]]; then
     ei "Updating ${ini_file}..."
     new_ini=$(mktemp)
@@ -188,17 +258,34 @@ fi
 
 # 5. Detect changes
 state_file="${GAME_ROOT}/.workshop-mods-state.json"
-current_state_json=$(jq -n '{}')
+versions_json=$(jq -n '{}')
 
 for id in "${unique_ids[@]}"; do
     info_json="${workshop_dir}/${id}/Info.json"
     if [[ -f "$info_json" ]]; then
         version=$(jq -r '.Version // "unknown"' "$info_json" 2>/dev/null || echo "unknown")
-        current_state_json=$(echo "$current_state_json" | jq --arg id "$id" --arg ver "$version" '. + {($id): $ver}')
+        versions_json=$(echo "$versions_json" | jq --arg id "$id" --arg ver "$version" '. + {($id): $ver}')
     else
-        current_state_json=$(echo "$current_state_json" | jq --arg id "$id" '. + {($id): "missing"}')
+        versions_json=$(echo "$versions_json" | jq --arg id "$id" '. + {($id): "missing"}')
     fi
 done
+
+# Convert arrays to JSON arrays safely using jq
+paks_json=$(jq -n '[]')
+for pak in "${deployed_paks[@]}"; do
+    paks_json=$(echo "$paks_json" | jq --arg pak "$pak" '. += [$pak]')
+done
+
+ue4ss_json=$(jq -n '[]')
+for file in "${deployed_ue4ss_files[@]}"; do
+    ue4ss_json=$(echo "$ue4ss_json" | jq --arg file "$file" '. += [$file]')
+done
+
+current_state_json=$(jq -n \
+    --argjson versions "$versions_json" \
+    --argjson paks "$paks_json" \
+    --argjson ue4ss "$ue4ss_json" \
+    '{versions: $versions, deployed_paks: $paks, deployed_ue4ss_files: $ue4ss}')
 
 changed=false
 if [[ ! -f "$state_file" ]]; then
