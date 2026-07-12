@@ -68,7 +68,17 @@ fi
 # 2. Download mods via steamcmd
 if [[ ${#unique_ids[@]} -gt 0 ]]; then
     ei "Preparing to download/update ${#unique_ids[@]} workshop mods..."
-    steamcmd_args=("+login" "anonymous")
+    
+    steamcmd_login=("anonymous")
+    if [[ -n "${STEAM_USERNAME:-}" ]]; then
+        if [[ -n "${STEAM_PASSWORD:-}" ]]; then
+            steamcmd_login=("${STEAM_USERNAME}" "${STEAM_PASSWORD}")
+        else
+            steamcmd_login=("${STEAM_USERNAME}")
+        fi
+    fi
+
+    steamcmd_args=("+login" "${steamcmd_login[@]}")
     for id in "${unique_ids[@]}"; do
         steamcmd_args+=("+workshop_download_item" "1623730" "$id")
     done

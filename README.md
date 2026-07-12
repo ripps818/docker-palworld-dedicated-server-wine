@@ -142,6 +142,32 @@ Go to the Palworld Steam Workshop page, find a mod you want to install, and look
 - **URL:** `https://steamcommunity.com/sharedfiles/filedetails/?id=3142718104`
 - **ID:** `3142718104`
 
+#### Steam Authentication (Required for Paid Workshop Content)
+Because Palworld (AppID `1623730`) is a paid game on Steam, SteamCMD requires an authenticated login using a Steam account that owns the game in order to download its Workshop mods (anonymous downloads will fail).
+
+1. Set the `STEAM_USERNAME` and `STEAM_PASSWORD` environment variables in your `.env` or compose environment:
+   ```yaml
+   environment:
+     - STEAM_USERNAME=your_steam_username
+     - STEAM_PASSWORD=your_steam_password
+   ```
+2. **Steam Guard (Two-Factor Authentication):**
+   If your account has Steam Guard enabled, SteamCMD will prompt for your 2FA code on the first run. You can authenticate interactively inside the container by running:
+   ```bash
+   docker exec -it palworld-wine-server steamcmd
+   ```
+   At the `Steam>` prompt, log in manually:
+   ```text
+   login your_steam_username your_steam_password
+   ```
+   Enter your 2FA code when prompted, and once successfully logged in, type `quit`.
+   
+   **Tip:** To avoid entering the Steam Guard code again when the container is recreated, you should mount a host directory to persist the Steam session token:
+   ```yaml
+   volumes:
+     - ./steam_cache:/home/steam/Steam/
+   ```
+
 #### Automatic Update Checks
 By default, the container checks for mod updates every 6 hours via the `WORKSHOP_MOD_UPDATE_CRON` environment variable (`0 */6 * * *`). 
 - When an update is detected, the container uses the REST API to broadcast warnings to connected players, save the world, shut down safely, and restart.

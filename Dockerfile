@@ -80,6 +80,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     # Workshop-mod-settings
     WORKSHOP_MOD_IDS="" \
     WORKSHOP_MOD_UPDATE_CRON="0 */6 * * *" \
+    STEAM_USERNAME="" \
+    STEAM_PASSWORD="" \
     # Webhook-settings
     WEBHOOK_ENABLED=false \
     WEBHOOK_DEBUG_ENABLED=false \
