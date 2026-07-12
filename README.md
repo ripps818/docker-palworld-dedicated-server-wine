@@ -178,9 +178,24 @@ By default, the container checks for mod updates every 6 hours via the `WORKSHOP
 
 ---
 
-### Manual Mod Installation (UE4SS)
+### Manual / Native Mod Installation (Automated)
 
-If you prefer to install mods manually or have mods not available on the Steam Workshop, you can install the UE4SS framework:
+If you have mods not available on the Steam Workshop (e.g. from Nexus Mods) or want to install the UE4SS framework manually, the container provides an automated pipeline using a `NativeMods` folder:
+
+1. Create a directory named `Mods/NativeMods` inside your bind-mounted game folder on the host (e.g., `./game/Mods/NativeMods/`).
+2. Place your extracted manual mod directories (e.g., `MyManualMod`) directly inside `./game/Mods/NativeMods/`.
+3. On container startup, the container will automatically:
+   - Deploy the mod folder to the server executable's directory.
+   - Auto-detect and copy LogicMod `.pak` files directly to `Pal/Content/Paks/LogicMods/`.
+   - Auto-detect and copy/rename UE4SS framework files (like `dwmapi.dll` / `UE4SS.dll`) to `Pal/Binaries/Win64/`.
+   - Register the mod automatically in `PalModSettings.ini` (parsing its `Info.json` or falling back to the mod folder name).
+   - Track and **clean up** all deployed files automatically if you delete the mod from `NativeMods` and restart the container.
+
+---
+
+### Manual Mod Installation (Legacy / Manual)
+
+If you prefer to copy files manually and configure the files yourself, you can install the UE4SS framework:
 
 1. Download the latest version of [UE4SS 3.0.0 or newer](https://github.com/UE4SS-RE/RE-UE4SS/releases)
 2. Unzip it into `./game/Pal/Binaries/Win64` (assuming `./game/` is the host directory bound to `/palworld` in the container)
