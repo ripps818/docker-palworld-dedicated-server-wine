@@ -41,14 +41,14 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PUID=1000 \
     PGID=1000 \
     TZ="Europe/Berlin" \
-	GAME_BIN="/palworld/Pal/Binaries/Win64/PalServer-Win64-Shipping-Cmd.exe" \
-	WINE_BIN="/usr/bin/wine" \
-	WINETRICK_ON_START=true \
-	WINETRICK_BIN="/usr/local/bin/winetricks" \
-	WINEPREFIX=/home/steam/.wine \
-	WINEARCH=win64 \
-	WINEDEBUG=-all \
-	DISPLAY=:99 \
+    GAME_BIN="/palworld/Pal/Binaries/Win64/PalServer-Win64-Shipping-Cmd.exe" \
+    WINE_BIN="/usr/bin/wine" \
+    WINETRICK_ON_START=true \
+    WINETRICK_BIN="/usr/local/bin/winetricks" \
+    WINEPREFIX=/home/steam/.wine \
+    WINEARCH=win64 \
+    WINEDEBUG=-all \
+    DISPLAY=:99 \
     # SteamCMD-settings
     ALWAYS_UPDATE_ON_START=true \
     STEAMCMD_VALIDATE_FILES=true \
@@ -59,7 +59,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     BACKUP_RETENTION_POLICY=true \
     BACKUP_RETENTION_AMOUNT_TO_KEEP=72 \
     # Restart-settings
-	RESTART_COUNTDOWN=15 \
+    RESTART_COUNTDOWN=15 \
     RESTART_ENABLED=false \
     RESTART_ANNOUNCE_MESSAGES_ENABLED=true \
     RESTART_DEBUG_OVERRIDE=false \
@@ -234,7 +234,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     # PalWorldSettings.ini - Other
     IS_MULTIPLAY=false \
     DENY_TECHNOLOGY_LIST=""
-    
+
 EXPOSE 8211/udp
 EXPOSE 8212/tcp
 EXPOSE 25575/tcp
@@ -247,20 +247,20 @@ COPY --from=tianon/gosu /gosu /usr/local/bin/gosu
 RUN apt-get update \
     && apt-get install -y --no-install-recommends --no-install-suggests \
     gettext-base \
-	procps \
-	xdg-user-dirs \
-	locales \
-	sed \
-	wget\
-	curl \
-	unzip \
-	winbind \
-	ca-certificates \
-	cabextract \
-	gnupg \
-	xvfb \
-	zenity \
-	tzdata \
+    procps \
+    xdg-user-dirs \
+    locales \
+    sed \
+    wget\
+    curl \
+    unzip \
+    winbind \
+    ca-certificates \
+    cabextract \
+    gnupg \
+    xvfb \
+    zenity \
+    tzdata \
     jq
 
 # Configure locale

@@ -151,22 +151,25 @@ Because Palworld (AppID `1623730`) is a paid game on Steam, SteamCMD requires an
      - STEAM_USERNAME=your_steam_username
      - STEAM_PASSWORD=your_steam_password
    ```
-2. **Steam Guard (Two-Factor Authentication):**
-   If your account has Steam Guard enabled, SteamCMD will prompt for your 2FA code on the first run. You can authenticate interactively inside the container by running:
-   ```bash
-   docker exec -it --user steam palworld-wine-server steamcmd
-   ```
-   At the `Steam>` prompt, log in manually:
-   ```text
-   login your_steam_username your_steam_password
-   ```
-   Enter your 2FA code when prompted, and once successfully logged in, type `quit`.
-   
-   **Tip:** To avoid entering the Steam Guard code again when the container is recreated, you should mount a host directory to persist the Steam session token:
-   ```yaml
-   volumes:
-     - ./steam_cache:/home/steam/Steam/
-   ```
+2. **Steam Guard (Two-Factor Authentication) Persistence:**
+   If your account has Steam Guard enabled, SteamCMD will prompt for your 2FA code on the first run. To avoid entering the Steam Guard code on every container restart, you must persist the Steam session token:
+   - Mount a host directory to `/home/steam/Steam/` in your `compose.yml` volumes:
+     ```yaml
+     volumes:
+       - ./steam_cache:/home/steam/Steam/
+     ```
+   - Run the interactive console inside the container to log in manually once:
+     ```bash
+     docker exec -it --user steam palworld-wine-server steamcmd
+     ```
+   - At the `Steam>` prompt, log in:
+     ```text
+     login your_steam_username your_steam_password
+     ```
+     Confirm the 2FA code on your phone/email. Once logged in, type `quit`.
+   - **Crucial step:** After logging in manually once, **remove or empty the `STEAM_PASSWORD` variable** in your `.env` or compose file, leaving only `STEAM_USERNAME` set.
+     
+     *Why?* If both `STEAM_USERNAME` and `STEAM_PASSWORD` are set, the container's startup script will attempt a fresh password login on every boot, which bypasses the cached session token and triggers a new 2FA prompt. Leaving `STEAM_PASSWORD` blank forces it to use the cached token in the mounted volume.
 
 #### Automatic Update Checks
 By default, the container checks for mod updates every 6 hours via the `WORKSHOP_MOD_UPDATE_CRON` environment variable (`0 */6 * * *`). 
