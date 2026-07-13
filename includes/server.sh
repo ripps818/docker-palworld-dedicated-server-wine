@@ -216,9 +216,20 @@ function update_server() {
 }
 
 function winetricks_install() {
+    local marker_file="${WINEPREFIX}/.vcrun2022-installed"
+    if [[ -f "$marker_file" ]]; then
+        ei ">>> Visual C++ Runtime 2022 is already installed. Skipping winetricks."
+        return 0
+    fi
+
 	ei ">>> Installing Visual C++ Runtime 2022"
 	trickscmd=("${WINETRICK_BIN}")
 	trickscmd+=("--optout" "-f" "-q" "vcrun2022")
 	echo "${trickscmd[*]}"
-	"${trickscmd[@]}"
+	if "${trickscmd[@]}"; then
+		touch "$marker_file"
+		es ">>> Visual C++ Runtime 2022 installed successfully."
+	else
+		ew ">>> WARNING: winetricks installation failed."
+	fi
 }

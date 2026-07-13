@@ -41,14 +41,14 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PUID=1000 \
     PGID=1000 \
     TZ="Europe/Berlin" \
-	GAME_BIN="/palworld/Pal/Binaries/Win64/PalServer-Win64-Shipping-Cmd.exe" \
-	WINE_BIN="/usr/bin/wine" \
-	WINETRICK_ON_START=true \
-	WINETRICK_BIN="/usr/local/bin/winetricks" \
-	WINEPREFIX=/home/steam/.wine \
-	WINEARCH=win64 \
-	WINEDEBUG=-all \
-	DISPLAY=:99 \
+    GAME_BIN="/palworld/Pal/Binaries/Win64/PalServer-Win64-Shipping-Cmd.exe" \
+    WINE_BIN="/usr/bin/wine" \
+    WINETRICK_ON_START=true \
+    WINETRICK_BIN="/usr/local/bin/winetricks" \
+    WINEPREFIX=/home/steam/.wine \
+    WINEARCH=win64 \
+    WINEDEBUG=-all \
+    DISPLAY=:99 \
     # SteamCMD-settings
     ALWAYS_UPDATE_ON_START=true \
     STEAMCMD_VALIDATE_FILES=true \
@@ -59,7 +59,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     BACKUP_RETENTION_POLICY=true \
     BACKUP_RETENTION_AMOUNT_TO_KEEP=72 \
     # Restart-settings
-	RESTART_COUNTDOWN=15 \
+    RESTART_COUNTDOWN=15 \
     RESTART_ENABLED=false \
     RESTART_ANNOUNCE_MESSAGES_ENABLED=true \
     RESTART_DEBUG_OVERRIDE=false \
@@ -77,6 +77,11 @@ ENV DEBIAN_FRONTEND=noninteractive \
     # Custom-script-settings
     CUSTOM_SCRIPT_ENABLED=false \
     CUSTOM_SCRIPT_PATH="/palworld/custom-script.sh" \
+    # Workshop-mod-settings
+    WORKSHOP_MOD_IDS="" \
+    WORKSHOP_MOD_UPDATE_CRON="0 */6 * * *" \
+    STEAM_USERNAME="" \
+    STEAM_PASSWORD="" \
     # Webhook-settings
     WEBHOOK_ENABLED=false \
     WEBHOOK_DEBUG_ENABLED=false \
@@ -107,10 +112,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
     # Config-setting - Warning: Every setting below here will be affected!
     SERVER_SETTINGS_MODE=manual \
     # Gameserver-start-settings
-    MULTITHREAD_ENABLED=false \
+    MULTITHREAD_ENABLED=true \
     COMMUNITY_SERVER=true \
     # Engine.ini settings
-    NETSERVERMAXTICKRATE=120 \
+    NETSERVERMAXTICKRATE=60 \
     # PalWorldSettings.ini - General Server Settings
     SERVER_NAME="wine-docker-generated-###RANDOM###" \
     SERVER_DESCRIPTION="Palworld-Wine-Server running in Docker by ripps" \
@@ -133,6 +138,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     CHAT_POST_LIMIT_PER_MINUTE=10 \
     CROSSPLAY_PLATFORMS="(Steam,Xbox,PS5,Mac)" \
     SHOW_JOIN_LEFT_MESSAGE=true \
+    ENABLE_VOICE_CHAT=false \
+    VOICE_CHAT_MAX_VOLUME_DISTANCE=3000.000000 \
+    VOICE_CHAT_ZERO_VOLUME_DISTANCE=15000.000000 \
     # PalWorldSettings.ini - Gameplay & Difficulty
     DIFFICULTY=None \
     DAYTIME_SPEEDRATE=1.000000 \
@@ -189,6 +197,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     AUTO_RESET_GUILD_NO_ONLINE_PLAYERS=false \
     AUTO_RESET_GUILD_TIME_NO_ONLINE_PLAYERS=72.000000 \
     GUILD_REJOIN_COOLDOWN_MINUTES=0 \
+    MONSTER_FARM_ACTION_SPEED_RATE=1.000000 \
     BUILD_OBJECT_HP_RATE=1.000000 \
     BUILD_OBJECT_DAMAGE_RATE=1.000000 \
     BUILD_OBJECT_DETERIORATION_DAMAGE_RATE=1.000000 \
@@ -200,13 +209,14 @@ ENV DEBIAN_FRONTEND=noninteractive \
     COLLECTION_OBJECT_HP_RATE=1.000000 \
     COLLECTION_OBJECT_RESPAWN_SPEED_RATE=1.000000 \
     ENEMY_DROP_ITEM_RATE=1.000000 \
-    DROP_ITEM_MAX_NUM=3000 \
-    DROP_ITEM_MAX_NUM_UNKO=100 \
+    DROP_ITEM_MAX_NUM=1000 \
+    DROP_ITEM_MAX_NUM_UNKO=50 \
     DROP_ITEM_ALIVE_MAX_HOURS=1.000000 \
     ITEM_WEIGHT_RATE=1.000000 \
     EQUIPMENT_DURABILITY_DAMAGE_RATE=1.000000 \
     ITEM_CONTAINER_FORCE_MARK_DIRTY_INTERVAL=1.000000 \
     ITEM_CORRUPTION_MULTIPLIER=1.000000 \
+    PHYSICS_ACTIVE_DROP_ITEM_MAX_NUM=3000 \
     # PalWorldSettings.ini - World & Exploration
     ENABLE_FAST_TRAVEL=true \
     ENABLE_FAST_TRAVEL_ONLY_BASE_CAMP=false \
@@ -228,8 +238,16 @@ ENV DEBIAN_FRONTEND=noninteractive \
     IS_RANDOMIZER_PAL_LEVEL_RANDOM=false \
     # PalWorldSettings.ini - Other
     IS_MULTIPLAY=false \
-    DENY_TECHNOLOGY_LIST=""
-    
+    DENY_TECHNOLOGY_LIST="" \
+    # PalWorldSettings.ini - Advanced & Performance Tuning
+    PLAYER_DATA_PAL_STORAGE_UPDATE_CHECK_TICK_INTERVAL=1.000000 \
+    AUTO_TRANSFER_MASTER_CHECK_INTERVAL_SECONDS=3600.000000 \
+    AUTO_TRANSFER_MASTER_THRESHOLD_DAYS=14 \
+    MAX_GUILDS_PER_FRAME=10 \
+    ENABLE_BUILDING_PLAYER_UID_DISPLAY=true \
+    BUILDING_NAME_DISPLAY_CACHE_TTL_SECONDS=60
+
+
 EXPOSE 8211/udp
 EXPOSE 8212/tcp
 EXPOSE 25575/tcp
@@ -242,20 +260,20 @@ COPY --from=tianon/gosu /gosu /usr/local/bin/gosu
 RUN apt-get update \
     && apt-get install -y --no-install-recommends --no-install-suggests \
     gettext-base \
-	procps \
-	xdg-user-dirs \
-	locales \
-	sed \
-	wget\
-	curl \
-	unzip \
-	winbind \
-	ca-certificates \
-	cabextract \
-	gnupg \
-	xvfb \
-	zenity \
-	tzdata \
+    procps \
+    xdg-user-dirs \
+    locales \
+    sed \
+    wget\
+    curl \
+    unzip \
+    winbind \
+    ca-certificates \
+    cabextract \
+    gnupg \
+    xvfb \
+    zenity \
+    tzdata \
     jq
 
 # Configure locale
@@ -305,7 +323,8 @@ RUN mkdir -p "$BACKUP_PATH" \
     && ln -s /scripts/backupmanager.sh /usr/local/bin/backup \
     && ln -s /scripts/restapicli.sh /usr/local/bin/restapicli \
     && ln -s /scripts/restart.sh /usr/local/bin/restart \
-    && printf '#!/bin/bash\nexec /home/steam/steamcmd/steamcmd.sh "$@"\n' > /usr/local/bin/steamcmd \
+    && ln -s /scripts/install-mods.sh /usr/local/bin/install-mods \
+    && printf '#!/bin/bash\nif [[ "${EUID}" -eq 0 ]]; then\n    exec gosu steam /home/steam/steamcmd/steamcmd.sh "$@"\nelse\n    exec /home/steam/steamcmd/steamcmd.sh "$@"\nfi\n' > /usr/local/bin/steamcmd \
     && chmod 755 /usr/local/bin/steamcmd
 
 RUN gosu --version \

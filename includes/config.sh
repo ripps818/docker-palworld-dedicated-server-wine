@@ -3,7 +3,7 @@
 source /includes/colors.sh
 
 current_setting=1
-settings_amount=108
+settings_amount=114
 
 function setup_engine_ini() {
     pattern1="OnlineSubsystemUtils.IpNetDriver"
@@ -39,7 +39,7 @@ function setup_engine_ini() {
 function e_with_counter() {
     local padded_number
     padded_number=$(printf "%02d" $current_setting)
-    # shellcheck disable=SC2145
+    # shellcheck disable=SC2148
     e "> ($padded_number/$settings_amount) Setting $@"
     current_setting=$((current_setting + 1))
 }
@@ -102,7 +102,12 @@ function setup_palworld_settings_ini() {
         $ADDITIONAL_DROP_ITEM_NUM_WHEN_PLAYER_KILLING_IN_PVP_MODE $ADDITIONAL_DROP_ITEM_WHEN_PLAYER_KILLING_IN_PVP_MODE 
         $ENABLE_ADDITIONAL_DROP_ITEM_WHEN_PLAYER_KILLING_IN_PVP_MODE $BLOCK_RESPAWN_TIME 
         $DENY_TECHNOLOGY_LIST $GUILD_REJOIN_COOLDOWN_MINUTES $ITEM_CORRUPTION_MULTIPLIER 
-        $RESPAWN_PENALTY_DURATION_THRESHOLD $RESPAWN_PENALTY_TIME_SCALE'
+        $RESPAWN_PENALTY_DURATION_THRESHOLD $RESPAWN_PENALTY_TIME_SCALE
+        $ENABLE_VOICE_CHAT $VOICE_CHAT_MAX_VOLUME_DISTANCE $VOICE_CHAT_ZERO_VOLUME_DISTANCE 
+        $MONSTER_FARM_ACTION_SPEED_RATE $PHYSICS_ACTIVE_DROP_ITEM_MAX_NUM 
+        $PLAYER_DATA_PAL_STORAGE_UPDATE_CHECK_TICK_INTERVAL $AUTO_TRANSFER_MASTER_CHECK_INTERVAL_SECONDS 
+        $AUTO_TRANSFER_MASTER_THRESHOLD_DAYS $MAX_GUILDS_PER_FRAME 
+        $ENABLE_BUILDING_PLAYER_UID_DISPLAY $BUILDING_NAME_DISPLAY_CACHE_TTL_SECONDS'
     
 
     if ! envsubst "$ENVSUBST_SELECTORS" < "${PALWORLD_TEMPLATE_FILE}" > "${GAME_SETTINGS_FILE}"; then

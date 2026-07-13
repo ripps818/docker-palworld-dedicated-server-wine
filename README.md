@@ -111,16 +111,100 @@ You can find the [changelog here](CHANGELOG.md)
 
 ## Installing Mods
 
-This Palword Windows server is capable of running the UE4SS framework to install mods.
-1. Download the latest version of [UE4SS 3.0.0 or newer](https://github.com/UE4SS-RE/RE-UE4SS/releases)
-2. Unzip into ./game/Pal/Binaries/Win64 (assuming that ./game/ is where /palworld from the container is bound in your host)
-3. Edit UE4SS-settings.ini for the following settings:
-   
+This Palworld Windows server supports installing mods manually (via UE4SS) or automatically via the Steam Workshop.
+
+### Automatic Mods via Steam Workshop
+
+Palworld Dedicated Server supports automatic mod installation and updates directly from the Steam Workshop. Mods sourced this way (including UE4SS itself, if published on the Workshop with the appropriate InstallRules) are deployed automatically by the server's own mod-manifest system on startup or restart. You do **not** need to manually download or place files into the game directories.
+
+#### Configuration
+You can specify which Workshop mods to install using either environment variables or a configuration file:
+
+1. **Via Environment Variable:**
+   Set the `WORKSHOP_MOD_IDS` environment variable to a comma-separated list of Published File IDs:
+   ```yaml
+   environment:
+     - WORKSHOP_MOD_IDS=3142718104,3142718105
    ```
+2. **Via Config File:**
+   Create a file named `workshop-mods.txt` in the root of your bind-mounted game directory (e.g., `./game/workshop-mods.txt`).
+   Add one Published File ID per line. Lines starting with `#` are treated as comments and blank lines are ignored:
+   ```text
+   # My Favorite Mods
+   3142718104
+   3142718105
+   ```
+
+*Note: If both sources are populated, the lists are merged and deduplicated.*
+
+#### How to Find a Mod's Published File ID
+Go to the Palworld Steam Workshop page, find a mod you want to install, and look at its URL. The ID is the number at the end of the `?id=` parameter:
+- **URL:** `https://steamcommunity.com/sharedfiles/filedetails/?id=3142718104`
+- **ID:** `3142718104`
+
+#### Steam Authentication (Required for Paid Workshop Content)
+Because Palworld (AppID `1623730`) is a paid game on Steam, SteamCMD requires an authenticated login using a Steam account that owns the game in order to download its Workshop mods (anonymous downloads will fail).
+
+1. Set the `STEAM_USERNAME` and `STEAM_PASSWORD` environment variables in your `.env` or compose environment:
+   ```yaml
+   environment:
+     - STEAM_USERNAME=your_steam_username
+     - STEAM_PASSWORD=your_steam_password
+   ```
+2. **Steam Guard (Two-Factor Authentication) Persistence:**
+   If your account has Steam Guard enabled, SteamCMD will prompt for your 2FA code on the first run. To avoid entering the Steam Guard code on every container restart, you must persist the Steam session token:
+   - Mount a host directory to `/home/steam/Steam/` in your `compose.yml` volumes:
+     ```yaml
+     volumes:
+       - ./steam_cache:/home/steam/Steam/
+     ```
+   - Run the interactive console inside the container to log in manually once:
+     ```bash
+     docker exec -it --user steam palworld-wine-server steamcmd
+     ```
+   - At the `Steam>` prompt, log in:
+     ```text
+     login your_steam_username your_steam_password
+     ```
+     Confirm the 2FA code on your phone/email. Once logged in, type `quit`.
+   - **Crucial step:** After logging in manually once, **remove or empty the `STEAM_PASSWORD` variable** in your `.env` or compose file, leaving only `STEAM_USERNAME` set.
+     
+     *Why?* If both `STEAM_USERNAME` and `STEAM_PASSWORD` are set, the container's startup script will attempt a fresh password login on every boot, which bypasses the cached session token and triggers a new 2FA prompt. Leaving `STEAM_PASSWORD` blank forces it to use the cached token in the mounted volume.
+
+#### Automatic Update Checks
+By default, the container checks for mod updates every 6 hours via the `WORKSHOP_MOD_UPDATE_CRON` environment variable (`0 */6 * * *`). 
+- When an update is detected, the container uses the REST API to broadcast warnings to connected players, save the world, shut down safely, and restart.
+- You can change the cron schedule by setting `WORKSHOP_MOD_UPDATE_CRON` to a different cron expression, or set it to empty (`""`) to disable periodic checks (mods will still be installed/updated once at container startup).
+
+---
+
+### Manual / Native Mod Installation (Automated)
+
+If you have mods not available on the Steam Workshop (e.g. from Nexus Mods) or want to install the UE4SS framework manually, the container provides an automated pipeline using a `NativeMods` folder:
+
+1. Create a directory named `Mods/NativeMods` inside your bind-mounted game folder on the host (e.g., `./game/Mods/NativeMods/`).
+2. Place your extracted manual mod directories (e.g., `MyManualMod`) directly inside `./game/Mods/NativeMods/`.
+3. On container startup, the container will automatically:
+   - Deploy the mod folder to the server executable's directory.
+   - Auto-detect and copy LogicMod `.pak` files directly to `Pal/Content/Paks/LogicMods/`.
+   - Auto-detect and copy/rename UE4SS framework files (like `dwmapi.dll` / `UE4SS.dll`) to `Pal/Binaries/Win64/`.
+   - Register the mod automatically in `PalModSettings.ini` (parsing its `Info.json` or falling back to the mod folder name).
+   - Track and **clean up** all deployed files automatically if you delete the mod from `NativeMods` and restart the container.
+
+---
+
+### Manual Mod Installation (Legacy / Manual)
+
+If you prefer to copy files manually and configure the files yourself, you can install the UE4SS framework:
+
+1. Download the latest version of [UE4SS 3.0.0 or newer](https://github.com/UE4SS-RE/RE-UE4SS/releases)
+2. Unzip it into `./game/Pal/Binaries/Win64` (assuming `./game/` is the host directory bound to `/palworld` in the container)
+3. Edit `UE4SS-settings.ini` to configure the following settings:
+   ```ini
    bUseUObjectArrayCache = false
    GuiConsoleEnabled = 0
    ```
-5. Install mods into the Mods folder and follow the install instructions for each mod. It might require editing mods.txt or installing parts of the mod into the generated LogicMods folder.
+4. Install mods into the `Mods` folder and follow the installation instructions for each mod. Some mods may require editing `mods.txt` or installing parts of the mod into the generated LogicMods folder.
 
 ## Environment variables
 
