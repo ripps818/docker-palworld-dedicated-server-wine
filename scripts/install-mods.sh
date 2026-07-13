@@ -129,11 +129,19 @@ if [[ -f "$state_file" ]]; then
             rm -f "${bin_dir}/${file}"
         fi
     done
+    # Read deployed_lua_mods array and delete each directory
+    jq -r '.deployed_lua_mods[]? // empty' "$state_file" 2>/dev/null | while read -r lua_mod; do
+        if [[ -n "$lua_mod" ]]; then
+            dbgi "Removing old deployed Lua mod directory: ${lua_mod}"
+            rm -rf "${mods_base_dir}/${lua_mod}"
+        fi
+    done
 fi
 
 # Arrays to keep track of currently deployed files for the new state
 deployed_paks=()
 deployed_ue4ss_files=()
+deployed_lua_mods=()
 
 # Function to deploy a mod's files based on its auto-discovered folders/files (legacy fallback)
 deploy_mod_auto_discover() {
@@ -182,6 +190,12 @@ deploy_mod_auto_discover() {
         ei "  Found UE4SS Mods folder. Deploying contents to ${mods_base_dir}..."
         cp -r "${dest_dir}/Mods"/. "${mods_base_dir}"/
         chown -R steam:steam "${mods_base_dir}" 2>/dev/null || true
+        # Track deployed Lua mod directories for state cleanup
+        for d in "${dest_dir}/Mods"/*; do
+            if [[ -d "$d" ]]; then
+                deployed_lua_mods+=($(basename "$d"))
+            fi
+        done
     fi
 }
 
@@ -233,6 +247,7 @@ deploy_mod_via_rules() {
                     mkdir -p "$dest"
                     cp -r "$target_path"/. "$dest"/
                     chown -R steam:steam "$dest" 2>/dev/null || true
+                    deployed_lua_mods+=("$pkg_name")
                 elif [[ "$type" == "Paks" ]]; then
                     local logic_mods_dir="${GAME_ROOT}/Pal/Content/Paks/LogicMods"
                     ei "    [Paks] Copying .pak files from $target to LogicMods..."
@@ -269,6 +284,12 @@ deploy_mod_via_rules() {
                         if [[ -d "${target_path}/Mods" ]]; then
                             cp -r "${target_path}/Mods"/. "${mods_base_dir}"/
                             chown -R steam:steam "${mods_base_dir}" 2>/dev/null || true
+                            # Track deployed Lua mod directories for state cleanup
+                            for d in "${target_path}/Mods"/*; do
+                                if [[ -d "$d" ]]; then
+                                    deployed_lua_mods+=($(basename "$d"))
+                                fi
+                            done
                         fi
                     fi
                 fi
@@ -454,6 +475,8 @@ if [[ -f "$mods_txt_file" ]]; then
     new_mods_txt=$(mktemp)
     
     declare -A processed_custom_mods
+    default_ue4ss_mods=("BPModLoaderMod" "CheatManagerEnablerMod" "ConsoleCommandsMod" "ConsoleEnablerMod" "BPML_GenericFunctions" "Keybinds" "CustomBus")
+    
     while IFS= read -r line || [[ -n "$line" ]]; do
         # Parse the mod name (trimming whitespace and colon)
         # e.g., "ConsoleEnablerMod : 0" -> "ConsoleEnablerMod"
@@ -471,7 +494,20 @@ if [[ -f "$mods_txt_file" ]]; then
                 echo "${m_name} : 1" >> "$new_mods_txt"
                 processed_custom_mods["$m_name"]=1
             else
-                echo "$line" >> "$new_mods_txt"
+                # Check if this mod is a default UE4SS mod
+                is_default=false
+                for def_mod in "${default_ue4ss_mods[@]}"; do
+                    if [[ "$def_mod" == "$m_name" ]]; then
+                        is_default=true
+                        break
+                    fi
+                done
+                
+                if [[ "$is_default" == true ]]; then
+                    echo "$line" >> "$new_mods_txt"
+                else
+                    dbgi "Omit removed custom mod from mods.txt: ${m_name}"
+                fi
             fi
         else
             echo "$line" >> "$new_mods_txt"
@@ -529,11 +565,17 @@ for file in "${deployed_ue4ss_files[@]}"; do
     ue4ss_json=$(echo "$ue4ss_json" | jq --arg file "$file" '. += [$file]')
 done
 
+lua_mods_json=$(jq -n '[]')
+for lmod in "${deployed_lua_mods[@]}"; do
+    lua_mods_json=$(echo "$lua_mods_json" | jq --arg lmod "$lmod" '. += [$lmod]')
+done
+
 current_state_json=$(jq -n \
     --argjson versions "$versions_json" \
     --argjson paks "$paks_json" \
     --argjson ue4ss "$ue4ss_json" \
-    '{versions: $versions, deployed_paks: $paks, deployed_ue4ss_files: $ue4ss}')
+    --argjson lmods "$lua_mods_json" \
+    '{versions: $versions, deployed_paks: $paks, deployed_ue4ss_files: $ue4ss, deployed_lua_mods: $lmods}')
 
 changed=false
 if [[ ! -f "$state_file" ]]; then
