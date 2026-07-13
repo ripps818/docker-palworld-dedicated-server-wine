@@ -22,6 +22,13 @@ fi
 
 GAME_ROOT="${GAME_ROOT:-/palworld}"
 STEAMCMD_PATH="${STEAMCMD_PATH:-/home/steam/steamcmd}"
+WORKSHOP_MODS_DEBUG="${WORKSHOP_MODS_DEBUG:-false}"
+
+dbgi() {
+    if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
+        echo -e "\e[36mDEBUG:\e[0m $*"
+    fi
+}
 
 # Locate the game's executable directory and the Mods base directory
 bin_dir=$(dirname "${GAME_BIN:-/palworld/Pal/Binaries/Win64/PalServer-Win64-Shipping-Cmd.exe}")
@@ -65,6 +72,8 @@ for id in "${mod_ids[@]}"; do
     fi
 done
 
+dbgi "Deduplicated Workshop Mod IDs to install/update: ${unique_ids[*]}"
+
 if [[ ${#unique_ids[@]} -eq 0 ]]; then
     ei "No Steam Workshop Mod IDs specified."
 fi
@@ -88,6 +97,13 @@ if [[ ${#unique_ids[@]} -gt 0 ]]; then
     done
     steamcmd_args+=("+quit")
 
+    # Print steamcmd command safely (mask password)
+    if [[ -n "${STEAM_PASSWORD:-}" ]]; then
+        dbgi "Running steamcmd with args: +login ${STEAM_USERNAME} ******** ${steamcmd_args[@]:3}"
+    else
+        dbgi "Running steamcmd with args: ${steamcmd_args[*]}"
+    fi
+
     # Run steamcmd, warn on failure but keep going
     ei "Running steamcmd..."
     if ! steamcmd "${steamcmd_args[@]}"; then
@@ -102,12 +118,14 @@ if [[ -f "$state_file" ]]; then
     # Read deployed_paks array and delete each file
     jq -r '.deployed_paks[]? // empty' "$state_file" 2>/dev/null | while read -r pak; do
         if [[ -n "$pak" ]]; then
+            dbgi "Removing old deployed pak: ${pak}"
             rm -f "${GAME_ROOT}/Pal/Content/Paks/LogicMods/${pak}"
         fi
     done
     # Read deployed_ue4ss_files array and delete each file
     jq -r '.deployed_ue4ss_files[]? // empty' "$state_file" 2>/dev/null | while read -r file; do
         if [[ -n "$file" ]]; then
+            dbgi "Removing old deployed UE4SS file: ${file}"
             rm -f "${bin_dir}/${file}"
         fi
     done
@@ -120,6 +138,7 @@ deployed_ue4ss_files=()
 # Function to deploy a mod's files based on its auto-discovered folders/files (legacy fallback)
 deploy_mod_auto_discover() {
     local dest_dir="$1"
+    dbgi "Running deploy_mod_auto_discover on: $dest_dir"
     
     # 4a. Handle Logic Mods (.pak files)
     local logic_mods_dir="${GAME_ROOT}/Pal/Content/Paks/LogicMods"
@@ -172,6 +191,7 @@ deploy_mod_via_rules() {
     local pkg_name="$2"
     local info_json="${dest_dir}/Info.json"
     
+    dbgi "Running deploy_mod_via_rules: dest_dir=$dest_dir, pkg_name=$pkg_name"
     ei "  Parsing InstallRule manifest..."
     
     # Heuristic: If there are any rules with IsServer == true, process only those.
@@ -182,6 +202,8 @@ deploy_mod_via_rules() {
     else
         rules_json=$(jq -c '.InstallRule[]?' "$info_json" 2>/dev/null)
     fi
+    
+    dbgi "Parsed rules: $rules_json"
     
     echo "$rules_json" | while read -r rule; do
         if [[ -z "$rule" ]]; then
@@ -201,6 +223,8 @@ deploy_mod_via_rules() {
             if [[ "$clean_target" == "." || -z "$clean_target" ]]; then
                 target_path="$dest_dir"
             fi
+            
+            dbgi "Processing rule: type=$type, target=$target, clean_target=$clean_target, target_path=$target_path"
             
             if [[ -e "$target_path" ]]; then
                 if [[ "$type" == "Lua" ]]; then
@@ -261,18 +285,25 @@ deploy_mod() {
     local dest_dir="$2"
     local pkg_name="$3"
     
+    dbgi "deploy_mod: src_dir=$src_dir, dest_dir=$dest_dir, pkg_name=$pkg_name"
     if [[ -d "$src_dir" ]]; then
+        dbgi "  Clearing and recreating $dest_dir"
         # Replace existing copy of the raw mod
         rm -rf "$dest_dir"
         mkdir -p "$dest_dir"
+        dbgi "  Copying files from $src_dir to $dest_dir"
         cp -r "$src_dir"/. "$dest_dir"/
 
         local info_json="${dest_dir}/Info.json"
         if [[ -f "$info_json" ]] && jq -e '.InstallRule' "$info_json" >/dev/null 2>&1; then
+            dbgi "  Info.json has InstallRule. Deploying via rules..."
             deploy_mod_via_rules "$dest_dir" "$pkg_name"
         else
+            dbgi "  No InstallRule found in Info.json. Deploying via auto-discover..."
             deploy_mod_auto_discover "$dest_dir"
         fi
+    else
+        dbgi "  Warning: src_dir $src_dir does not exist."
     fi
 }
 
@@ -281,19 +312,24 @@ workshop_dir="${mods_base_dir}/Workshop"
 mkdir -p "$workshop_dir"
 
 for id in "${unique_ids[@]}"; do
+    dbgi "Processing Workshop Mod ID: $id"
     # Try different potential SteamCMD download paths to ensure compatibility
     src_dir="/home/steam/Steam/steamapps/workshop/content/1623730/${id}"
+    dbgi "  Checking path: $src_dir"
     if [[ ! -d "$src_dir" ]]; then
         src_dir="/home/steam/.steam/steam/steamapps/workshop/content/1623730/${id}"
+        dbgi "  Checking path: $src_dir"
     fi
     if [[ ! -d "$src_dir" ]]; then
         src_dir="/home/steam/.local/share/Steam/steamapps/workshop/content/1623730/${id}"
+        dbgi "  Checking path: $src_dir"
     fi
     
     dest_dir="${workshop_dir}/${id}"
+    dbgi "  Destination path: $dest_dir"
     
     if [[ -d "$src_dir" ]]; then
-        local pkg_name=$(jq -r '.PackageName // empty' "${src_dir}/Info.json" 2>/dev/null || true)
+        pkg_name=$(jq -r '.PackageName // empty' "${src_dir}/Info.json" 2>/dev/null || true)
         if [[ -z "$pkg_name" || "$pkg_name" == "null" ]]; then
             pkg_name="$id"
         fi
@@ -311,12 +347,14 @@ chown steam:steam "$native_mods_dir" 2>/dev/null || true
 
 native_mod_names=()
 if [[ -d "$native_mods_dir" ]]; then
+    dbgi "Scanning Native mods directory: $native_mods_dir"
     for mod_path in "$native_mods_dir"/*; do
         if [[ -d "$mod_path" ]]; then
             mod_name=$(basename "$mod_path")
+            dbgi "  Found Native mod: $mod_name at $mod_path"
             ei "Deploying Native mod $mod_name..."
             dest_dir="${mods_base_dir}/${mod_name}"
-            local pkg_name=$(jq -r '.PackageName // empty' "${mod_path}/Info.json" 2>/dev/null || true)
+            pkg_name=$(jq -r '.PackageName // empty' "${mod_path}/Info.json" 2>/dev/null || true)
             if [[ -z "$pkg_name" || "$pkg_name" == "null" ]]; then
                 pkg_name="$mod_name"
             fi
@@ -358,6 +396,7 @@ done
 
 ini_file="${mods_base_dir}/PalModSettings.ini"
 if [[ -f "$ini_file" ]]; then
+    dbgi "Updating PalModSettings.ini. Active packages to write: ${active_packages[*]}"
     ei "Updating ${ini_file}..."
     new_ini=$(mktemp)
     in_active_list=false
@@ -451,16 +490,21 @@ current_state_json=$(jq -n \
 
 changed=false
 if [[ ! -f "$state_file" ]]; then
+    dbgi "State file does not exist. Triggering change..."
     changed=true
 else
     old_state=$(jq -c . "$state_file" 2>/dev/null || echo "{}")
     new_state=$(echo "$current_state_json" | jq -c .)
+    dbgi "Old state: $old_state"
+    dbgi "New state: $new_state"
     if [[ "$old_state" != "$new_state" ]]; then
+        dbgi "State difference detected!"
         changed=true
     fi
 fi
 
 # Save the new state
+dbgi "Saving current state: $current_state_json"
 echo "$current_state_json" | jq . > "$state_file"
 chmod 644 "$state_file"
 chown steam:steam "$state_file" 2>/dev/null || true
