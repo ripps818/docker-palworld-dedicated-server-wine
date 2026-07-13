@@ -117,59 +117,161 @@ fi
 deployed_paks=()
 deployed_ue4ss_files=()
 
-# Function to deploy a mod folder (handles LogicMods, UE4SS, and copy operations)
-deploy_mod_folder() {
+# Function to deploy a mod's files based on its auto-discovered folders/files (legacy fallback)
+deploy_mod_auto_discover() {
+    local dest_dir="$1"
+    
+    # 4a. Handle Logic Mods (.pak files)
+    local logic_mods_dir="${GAME_ROOT}/Pal/Content/Paks/LogicMods"
+    mkdir -p "$logic_mods_dir"
+    while read -r pak_file; do
+        if [[ -f "$pak_file" ]]; then
+            local pak_name=$(basename "$pak_file")
+            ei "  Found logic mod: $pak_name. Deploying to LogicMods..."
+            cp -f "$pak_file" "$logic_mods_dir/"
+            chown steam:steam "$logic_mods_dir/$pak_name" 2>/dev/null || true
+            deployed_paks+=("$pak_name")
+        fi
+    done < <(find "$dest_dir" -type f -name "*.pak")
+
+    # 4b. Handle UE4SS framework files (dwmapi.dll, UE4SS.dll, UE4SS-settings.ini)
+    if [[ -f "${dest_dir}/dwmapi.dll" ]]; then
+        ei "  Found dwmapi.dll. Deploying..."
+        cp -f "${dest_dir}/dwmapi.dll" "${bin_dir}/"
+        chown steam:steam "${bin_dir}/dwmapi.dll" 2>/dev/null || true
+        deployed_ue4ss_files+=("dwmapi.dll")
+    elif [[ -f "${dest_dir}/UE4SS.dll" ]]; then
+        ei "  Found UE4SS.dll. Deploying and copying to dwmapi.dll..."
+        cp -f "${dest_dir}/UE4SS.dll" "${bin_dir}/dwmapi.dll"
+        cp -f "${dest_dir}/UE4SS.dll" "${bin_dir}/UE4SS.dll"
+        chown steam:steam "${bin_dir}/dwmapi.dll" "${bin_dir}/UE4SS.dll" 2>/dev/null || true
+        deployed_ue4ss_files+=("dwmapi.dll" "UE4SS.dll")
+    fi
+
+    # Check for other dlls or settings
+    for file in "UE4SS-settings.ini" "Vindsent.dll"; do
+        if [[ -f "${dest_dir}/${file}" ]]; then
+            ei "  Found UE4SS file: $file. Deploying..."
+            cp -f "${dest_dir}/${file}" "${bin_dir}/"
+            chown steam:steam "${bin_dir}/${file}" 2>/dev/null || true
+            deployed_ue4ss_files+=("$file")
+        fi
+    done
+
+    # If this is a UE4SS mod with a Mods folder, copy its contents to Mods directory
+    if [[ -d "${dest_dir}/Mods" ]]; then
+        ei "  Found UE4SS Mods folder. Deploying contents to ${mods_base_dir}..."
+        cp -r "${dest_dir}/Mods"/. "${mods_base_dir}"/
+        chown -R steam:steam "${mods_base_dir}" 2>/dev/null || true
+    fi
+}
+
+# Function to deploy a mod's files using the official InstallRule schema from Info.json
+deploy_mod_via_rules() {
+    local dest_dir="$1"
+    local pkg_name="$2"
+    local info_json="${dest_dir}/Info.json"
+    
+    ei "  Parsing InstallRule manifest..."
+    
+    # Heuristic: If there are any rules with IsServer == true, process only those.
+    # Otherwise, process all rules (assuming the mod does not define IsServer but is generic).
+    local rules_json
+    if jq -e '.InstallRule[]? | select(.IsServer == true)' "$info_json" >/dev/null 2>&1; then
+        rules_json=$(jq -c '.InstallRule[]? | select(.IsServer == true)' "$info_json" 2>/dev/null)
+    else
+        rules_json=$(jq -c '.InstallRule[]?' "$info_json" 2>/dev/null)
+    fi
+    
+    echo "$rules_json" | while read -r rule; do
+        if [[ -z "$rule" ]]; then
+            continue
+        fi
+        
+        local type=$(echo "$rule" | jq -r '.Type // empty')
+        
+        # Read the Targets array
+        echo "$rule" | jq -r '.Targets[]? // empty' | while read -r target; do
+            # Trim leading "./" or "/" if present
+            local clean_target="${target#./}"
+            clean_target="${clean_target#/}"
+            local target_path="${dest_dir}/${clean_target}"
+            
+            # If target_path is just "." or empty, it refers to the dest_dir itself
+            if [[ "$clean_target" == "." || -z "$clean_target" ]]; then
+                target_path="$dest_dir"
+            fi
+            
+            if [[ -e "$target_path" ]]; then
+                if [[ "$type" == "Lua" ]]; then
+                    local dest="${mods_base_dir}/${pkg_name}"
+                    ei "    [Lua] Copying $target to $dest..."
+                    mkdir -p "$dest"
+                    cp -r "$target_path"/. "$dest"/
+                    chown -R steam:steam "$dest" 2>/dev/null || true
+                elif [[ "$type" == "Paks" ]]; then
+                    local logic_mods_dir="${GAME_ROOT}/Pal/Content/Paks/LogicMods"
+                    ei "    [Paks] Copying .pak files from $target to LogicMods..."
+                    mkdir -p "$logic_mods_dir"
+                    # Find and copy all .pak files in the target directory
+                    find "$target_path" -type f -name "*.pak" | while read -r pak_file; do
+                        local pak_name=$(basename "$pak_file")
+                        cp -f "$pak_file" "$logic_mods_dir/"
+                        chown steam:steam "$logic_mods_dir/$pak_name" 2>/dev/null || true
+                        deployed_paks+=("$pak_name")
+                    done
+                elif [[ "$type" == "UE4SS" ]]; then
+                    ei "    [UE4SS] Deploying framework files from $target to $bin_dir..."
+                    if [[ -d "$target_path" ]]; then
+                        # Copy dwmapi.dll, UE4SS.dll, UE4SS-settings.ini, etc.
+                        if [[ -f "${target_path}/dwmapi.dll" ]]; then
+                            cp -f "${target_path}/dwmapi.dll" "${bin_dir}/"
+                            chown steam:steam "${bin_dir}/dwmapi.dll" 2>/dev/null || true
+                            deployed_ue4ss_files+=("dwmapi.dll")
+                        elif [[ -f "${target_path}/UE4SS.dll" ]]; then
+                            cp -f "${target_path}/UE4SS.dll" "${bin_dir}/dwmapi.dll"
+                            cp -f "${target_path}/UE4SS.dll" "${bin_dir}/UE4SS.dll"
+                            chown steam:steam "${bin_dir}/dwmapi.dll" "${bin_dir}/UE4SS.dll" 2>/dev/null || true
+                            deployed_ue4ss_files+=("dwmapi.dll" "UE4SS.dll")
+                        fi
+                        for file in "UE4SS-settings.ini" "Vindsent.dll"; do
+                            if [[ -f "${target_path}/${file}" ]]; then
+                                cp -f "${target_path}/${file}" "${bin_dir}/"
+                                chown steam:steam "${bin_dir}/${file}" 2>/dev/null || true
+                                deployed_ue4ss_files+=("$file")
+                            fi
+                        done
+                        # Copy Mods directory if exists
+                        if [[ -d "${target_path}/Mods" ]]; then
+                            cp -r "${target_path}/Mods"/. "${mods_base_dir}"/
+                            chown -R steam:steam "${mods_base_dir}" 2>/dev/null || true
+                        fi
+                    fi
+                fi
+            else
+                ew "    Warning: Target path $target_path not found for type $type"
+            fi
+        done
+    done
+}
+
+# Main dispatcher function to deploy a mod folder
+deploy_mod() {
     local src_dir="$1"
     local dest_dir="$2"
+    local pkg_name="$3"
     
     if [[ -d "$src_dir" ]]; then
-        # Replace existing copy
+        # Replace existing copy of the raw mod
         rm -rf "$dest_dir"
         mkdir -p "$dest_dir"
         cp -r "$src_dir"/. "$dest_dir"/
 
-        # 4a. Handle Logic Mods (.pak files)
-        local logic_mods_dir="${GAME_ROOT}/Pal/Content/Paks/LogicMods"
-        mkdir -p "$logic_mods_dir"
-        while read -r pak_file; do
-            if [[ -f "$pak_file" ]]; then
-                local pak_name=$(basename "$pak_file")
-                ei "  Found logic mod: $pak_name. Deploying to LogicMods..."
-                cp -f "$pak_file" "$logic_mods_dir/"
-                chown steam:steam "$logic_mods_dir/$pak_name" 2>/dev/null || true
-                deployed_paks+=("$pak_name")
-            fi
-        done < <(find "$dest_dir" -type f -name "*.pak")
-
-        # 4b. Handle UE4SS framework files (dwmapi.dll, UE4SS.dll, UE4SS-settings.ini)
-        if [[ -f "${dest_dir}/dwmapi.dll" ]]; then
-            ei "  Found dwmapi.dll. Deploying..."
-            cp -f "${dest_dir}/dwmapi.dll" "${bin_dir}/"
-            chown steam:steam "${bin_dir}/dwmapi.dll" 2>/dev/null || true
-            deployed_ue4ss_files+=("dwmapi.dll")
-        elif [[ -f "${dest_dir}/UE4SS.dll" ]]; then
-            ei "  Found UE4SS.dll. Deploying and copying to dwmapi.dll..."
-            cp -f "${dest_dir}/UE4SS.dll" "${bin_dir}/dwmapi.dll"
-            cp -f "${dest_dir}/UE4SS.dll" "${bin_dir}/UE4SS.dll"
-            chown steam:steam "${bin_dir}/dwmapi.dll" "${bin_dir}/UE4SS.dll" 2>/dev/null || true
-            deployed_ue4ss_files+=("dwmapi.dll" "UE4SS.dll")
-        fi
-
-        # Check for other dlls or settings
-        for file in "UE4SS-settings.ini" "Vindsent.dll"; do
-            if [[ -f "${dest_dir}/${file}" ]]; then
-                ei "  Found UE4SS file: $file. Deploying..."
-                cp -f "${dest_dir}/${file}" "${bin_dir}/"
-                chown steam:steam "${bin_dir}/${file}" 2>/dev/null || true
-                deployed_ue4ss_files+=("$file")
-            fi
-        done
-
-        # If this is a UE4SS mod with a Mods folder, copy its contents to Mods directory
-        if [[ -d "${dest_dir}/Mods" ]]; then
-            ei "  Found UE4SS Mods folder. Deploying contents to ${mods_base_dir}..."
-            cp -r "${dest_dir}/Mods"/. "${mods_base_dir}"/
-            chown -R steam:steam "${mods_base_dir}" 2>/dev/null || true
+        local info_json="${dest_dir}/Info.json"
+        if [[ -f "$info_json" ]] && jq -e '.InstallRule' "$info_json" >/dev/null 2>&1; then
+            deploy_mod_via_rules "$dest_dir" "$pkg_name"
+        else
+            deploy_mod_auto_discover "$dest_dir"
         fi
     fi
 }
@@ -191,8 +293,12 @@ for id in "${unique_ids[@]}"; do
     dest_dir="${workshop_dir}/${id}"
     
     if [[ -d "$src_dir" ]]; then
-        ei "Deploying Workshop mod $id..."
-        deploy_mod_folder "$src_dir" "$dest_dir"
+        local pkg_name=$(jq -r '.PackageName // empty' "${src_dir}/Info.json" 2>/dev/null || true)
+        if [[ -z "$pkg_name" || "$pkg_name" == "null" ]]; then
+            pkg_name="$id"
+        fi
+        ei "Deploying Workshop mod $id ($pkg_name)..."
+        deploy_mod "$src_dir" "$dest_dir" "$pkg_name"
     else
         ew "Warning: Workshop mod $id was not found at $src_dir. Download might have failed."
     fi
@@ -210,7 +316,11 @@ if [[ -d "$native_mods_dir" ]]; then
             mod_name=$(basename "$mod_path")
             ei "Deploying Native mod $mod_name..."
             dest_dir="${mods_base_dir}/${mod_name}"
-            deploy_mod_folder "$mod_path" "$dest_dir"
+            local pkg_name=$(jq -r '.PackageName // empty' "${mod_path}/Info.json" 2>/dev/null || true)
+            if [[ -z "$pkg_name" || "$pkg_name" == "null" ]]; then
+                pkg_name="$mod_name"
+            fi
+            deploy_mod "$mod_path" "$dest_dir" "$pkg_name"
             native_mod_names+=("$mod_name")
         fi
     done
