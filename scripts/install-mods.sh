@@ -205,7 +205,7 @@ deploy_mod_via_rules() {
     
     dbgi "Parsed rules: $rules_json"
     
-    echo "$rules_json" | while read -r rule; do
+    while read -r rule; do
         if [[ -z "$rule" ]]; then
             continue
         fi
@@ -213,7 +213,7 @@ deploy_mod_via_rules() {
         local type=$(echo "$rule" | jq -r '.Type // empty')
         
         # Read the Targets array
-        echo "$rule" | jq -r '.Targets[]? // empty' | while read -r target; do
+        while read -r target; do
             # Trim leading "./" or "/" if present
             local clean_target="${target#./}"
             clean_target="${clean_target#/}"
@@ -238,12 +238,12 @@ deploy_mod_via_rules() {
                     ei "    [Paks] Copying .pak files from $target to LogicMods..."
                     mkdir -p "$logic_mods_dir"
                     # Find and copy all .pak files in the target directory
-                    find "$target_path" -type f -name "*.pak" | while read -r pak_file; do
+                    while read -r pak_file; do
                         local pak_name=$(basename "$pak_file")
                         cp -f "$pak_file" "$logic_mods_dir/"
                         chown steam:steam "$logic_mods_dir/$pak_name" 2>/dev/null || true
                         deployed_paks+=("$pak_name")
-                    done
+                    done < <(find "$target_path" -type f -name "*.pak")
                 elif [[ "$type" == "UE4SS" ]]; then
                     ei "    [UE4SS] Deploying framework files from $target to $bin_dir..."
                     if [[ -d "$target_path" ]]; then
@@ -275,8 +275,8 @@ deploy_mod_via_rules() {
             else
                 ew "    Warning: Target path $target_path not found for type $type"
             fi
-        done
-    done
+        done < <(echo "$rule" | jq -r '.Targets[]? // empty')
+    done < <(echo "$rules_json")
 }
 
 # Main dispatcher function to deploy a mod folder
