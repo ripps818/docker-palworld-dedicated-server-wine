@@ -2,6 +2,17 @@
 
 [Back to main](README.md#changelog)
 
+## 2026-07-13
+
+- Optimized container startup time when `WINETRICK_ON_START` is enabled - by @ripps818
+  - `winetricks_install` now uses a persistent marker file (`.vcrun2022-installed`) inside the Wine prefix to reliably track and skip the slow `winetricks` installation on restarts, reducing startup time by ~2 minutes.
+- Automated cleanup of removed workshop mods - by @ripps818
+  - Added tracking and state retention for deployed Lua mods (folder names) inside `.workshop-mods-state.json`.
+  - Deprecated and removed Lua mod directories are now deleted from the `Mods/` folder on startup.
+  - Automatically filters out removed custom Lua mods from `mods.txt` while keeping the default UE4SS system mods intact.
+- Fixed missing configuration settings in `PalWorldSettings.ini` generation (closes #46) - by @ripps818
+  - Added support for 6 new v0.3.x/Feybreak game settings in the template, default.env, Dockerfile, and config selectors.
+
 ## 2026-07-11
 
 - Added automatic Steam Workshop mod installation and update support - by @ripps818
