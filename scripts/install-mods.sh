@@ -100,13 +100,13 @@ state_file="${GAME_ROOT}/.workshop-mods-state.json"
 if [[ -f "$state_file" ]]; then
     ei "Cleaning up previously deployed files from state..."
     # Read deployed_paks array and delete each file
-    jq -r '.deployed_paks[] // empty' "$state_file" 2>/dev/null | while read -r pak; do
+    jq -r '.deployed_paks[]? // empty' "$state_file" 2>/dev/null | while read -r pak; do
         if [[ -n "$pak" ]]; then
             rm -f "${GAME_ROOT}/Pal/Content/Paks/LogicMods/${pak}"
         fi
     done
     # Read deployed_ue4ss_files array and delete each file
-    jq -r '.deployed_ue4ss_files[] // empty' "$state_file" 2>/dev/null | while read -r file; do
+    jq -r '.deployed_ue4ss_files[]? // empty' "$state_file" 2>/dev/null | while read -r file; do
         if [[ -n "$file" ]]; then
             rm -f "${bin_dir}/${file}"
         fi
