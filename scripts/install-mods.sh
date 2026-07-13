@@ -447,6 +447,53 @@ else
     ei "PalModSettings.ini does not exist yet. Skipping ini update."
 fi
 
+# Update mods.txt in Mods folder to enable deployed Lua mods
+mods_txt_file="${mods_base_dir}/mods.txt"
+if [[ -f "$mods_txt_file" ]]; then
+    dbgi "Updating mods.txt. Active packages: ${active_packages[*]}"
+    new_mods_txt=$(mktemp)
+    
+    declare -A processed_custom_mods
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        # Parse the mod name (trimming whitespace and colon)
+        # e.g., "ConsoleEnablerMod : 0" -> "ConsoleEnablerMod"
+        if [[ "$line" =~ ^[[:space:]]*([^[:space:]:]+)[[:space:]]*:[[:space:]]*(0|1) ]]; then
+            m_name="${BASH_REMATCH[1]}"
+            is_active=false
+            for pkg in "${active_packages[@]}"; do
+                if [[ "$pkg" == "$m_name" ]]; then
+                    is_active=true
+                    break
+                fi
+            done
+            
+            if [[ "$is_active" == true ]]; then
+                echo "${m_name} : 1" >> "$new_mods_txt"
+                processed_custom_mods["$m_name"]=1
+            else
+                echo "$line" >> "$new_mods_txt"
+            fi
+        else
+            echo "$line" >> "$new_mods_txt"
+        fi
+    done < "$mods_txt_file"
+    
+    # For any active packages that have a directory in mods_base_dir but weren't in mods.txt yet, append them
+    for pkg in "${active_packages[@]}"; do
+        if [[ -d "${mods_base_dir}/${pkg}" ]] && [[ -z "${processed_custom_mods[$pkg]:-}" ]]; then
+            dbgi "Appending new mod to mods.txt: ${pkg} : 1"
+            echo "${pkg} : 1" >> "$new_mods_txt"
+        fi
+    done
+    
+    mv "$new_mods_txt" "$mods_txt_file"
+    chmod 644 "$mods_txt_file"
+    chown steam:steam "$mods_txt_file" 2>/dev/null || true
+    es "Updated mods.txt successfully."
+else
+    ei "mods.txt does not exist yet. Skipping mods.txt update."
+fi
+
 # 5. Detect changes
 state_file="${GAME_ROOT}/.workshop-mods-state.json"
 versions_json=$(jq -n '{}')
