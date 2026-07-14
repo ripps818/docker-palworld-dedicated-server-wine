@@ -48,6 +48,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     WINEPREFIX=/home/steam/.wine \
     WINEARCH=win64 \
     WINEDEBUG=-all \
+    WINEDLLOVERRIDES="mscoree,mshtml=;dwmapi=n,b" \
     DISPLAY=:99 \
     # SteamCMD-settings
     ALWAYS_UPDATE_ON_START=true \
