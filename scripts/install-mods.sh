@@ -325,7 +325,11 @@ deploy_mod_via_rules() {
                     local dest="${mods_base_dir}/${pkg_name}"
                     ei "    [Lua] Copying $target to $dest..."
                     mkdir -p "$dest"
-                    cp -r "$target_path"/. "$dest"/
+                    if [[ -d "$target_path" ]]; then
+                        cp -r "$target_path"/. "$dest"/
+                    else
+                        cp -f "$target_path" "$dest"/
+                    fi
                     chown -R steam:steam "$dest" 2>/dev/null || true
                     deployed_lua_mods+=("$pkg_name")
                 elif [[ "$type" == "Paks" ]]; then
