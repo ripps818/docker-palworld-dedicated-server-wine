@@ -136,16 +136,28 @@ if [[ -f "$state_file" ]]; then
             rm -rf "${mods_base_dir}/${lua_mod}"
         fi
     done
+    # Read deployed_palschema_mods array and delete each directory
+    jq -r '.deployed_palschema_mods[]? // empty' "$state_file" 2>/dev/null | while read -r palschema_mod; do
+        if [[ -n "$palschema_mod" ]]; then
+            dbgi "Removing old deployed PalSchema mod directory: ${palschema_mod}"
+            rm -rf "${mods_base_dir}/PalSchema/mods/${palschema_mod}"
+        fi
+    done
 fi
 
 # Arrays to keep track of currently deployed files for the new state
 deployed_paks=()
 deployed_ue4ss_files=()
 deployed_lua_mods=()
+deployed_palschema_mods=()
 
 # Function to deploy a mod's files based on its auto-discovered folders/files (legacy fallback)
 deploy_mod_auto_discover() {
     local dest_dir="$1"
+    local pkg_name="${2:-}"
+    if [[ -z "$pkg_name" ]]; then
+        pkg_name=$(basename "$dest_dir")
+    fi
     dbgi "Running deploy_mod_auto_discover on: $dest_dir"
     
     # 4a. Handle Logic Mods (.pak files)
@@ -190,12 +202,80 @@ deploy_mod_auto_discover() {
         ei "  Found UE4SS Mods folder. Deploying contents to ${mods_base_dir}..."
         cp -r "${dest_dir}/Mods"/. "${mods_base_dir}"/
         chown -R steam:steam "${mods_base_dir}" 2>/dev/null || true
-        # Track deployed Lua mod directories for state cleanup
+        # Track deployed Lua mod directories or PalSchema mods for state cleanup
         for d in "${dest_dir}/Mods"/*; do
             if [[ -d "$d" ]]; then
-                deployed_lua_mods+=($(basename "$d"))
+                local mod_name=$(basename "$d")
+                if [[ "$mod_name" == "PalSchema" && -d "$d/mods" ]]; then
+                    # It's a PalSchema package containing sub-mods
+                    for sub_d in "$d/mods"/*; do
+                        if [[ -d "$sub_d" ]]; then
+                            deployed_palschema_mods+=($(basename "$sub_d"))
+                        fi
+                    done
+                else
+                    # Standard Lua mod, or PalSchema framework itself
+                    deployed_lua_mods+=("$mod_name")
+                fi
             fi
         done
+    fi
+
+    # 4c. Handle PalSchema mods (either inside a 'PalSchema/mods' folder, a flat 'PalSchema' folder, or 'mods' folder)
+    if [[ -d "${dest_dir}/PalSchema/mods" ]]; then
+        ei "  Found PalSchema mods directory. Deploying..."
+        mkdir -p "${mods_base_dir}/PalSchema/mods"
+        cp -r "${dest_dir}/PalSchema/mods"/. "${mods_base_dir}/PalSchema/mods"/
+        chown -R steam:steam "${mods_base_dir}/PalSchema/mods" 2>/dev/null || true
+        for d in "${dest_dir}/PalSchema/mods"/*; do
+            if [[ -d "$d" ]]; then
+                deployed_palschema_mods+=($(basename "$d"))
+            fi
+        done
+    elif [[ -d "${dest_dir}/PalSchema" ]]; then
+        # Check if it is the PalSchema framework itself
+        if [[ -f "${dest_dir}/PalSchema/scripts/main.lua" || -f "${dest_dir}/PalSchema/main.lua" ]]; then
+            ei "  Found PalSchema framework. Deploying as Lua mod..."
+            cp -r "${dest_dir}/PalSchema" "${mods_base_dir}/"
+            chown -R steam:steam "${mods_base_dir}/PalSchema" 2>/dev/null || true
+            deployed_lua_mods+=("PalSchema")
+        else
+            # Otherwise, treat the entire PalSchema folder as a single PalSchema mod under the package's name
+            ei "  Found PalSchema mod folder. Deploying to PalSchema/mods/${pkg_name}..."
+            local dest="${mods_base_dir}/PalSchema/mods/${pkg_name}"
+            mkdir -p "$dest"
+            cp -r "${dest_dir}/PalSchema"/. "$dest"/
+            chown -R steam:steam "$dest" 2>/dev/null || true
+            deployed_palschema_mods+=("$pkg_name")
+        fi
+    elif [[ -d "${dest_dir}/mods" ]]; then
+        ei "  Found PalSchema mods directory (lowercase mods). Deploying..."
+        mkdir -p "${mods_base_dir}/PalSchema/mods"
+        cp -r "${dest_dir}/mods"/. "${mods_base_dir}/PalSchema/mods"/
+        chown -R steam:steam "${mods_base_dir}/PalSchema/mods" 2>/dev/null || true
+        for d in "${dest_dir}/mods"/*; do
+            if [[ -d "$d" ]]; then
+                deployed_palschema_mods+=($(basename "$d"))
+            fi
+        done
+    fi
+
+    # 4d. Handle flat PalSchema mods (contains blueprints, raw, translations, or items folder at root)
+    local is_flat_palschema=false
+    for dir in "blueprints" "raw" "translations" "items"; do
+        if [[ -d "${dest_dir}/${dir}" ]]; then
+            is_flat_palschema=true
+            break
+        fi
+    done
+    
+    if [[ "$is_flat_palschema" == "true" ]]; then
+        ei "  Found flat PalSchema mod. Deploying to PalSchema/mods/${pkg_name}..."
+        local dest="${mods_base_dir}/PalSchema/mods/${pkg_name}"
+        mkdir -p "$dest"
+        cp -r "${dest_dir}"/. "$dest"/
+        chown -R steam:steam "$dest" 2>/dev/null || true
+        deployed_palschema_mods+=("$pkg_name")
     fi
 }
 
@@ -259,6 +339,17 @@ deploy_mod_via_rules() {
                         chown steam:steam "$logic_mods_dir/$pak_name" 2>/dev/null || true
                         deployed_paks+=("$pak_name")
                     done < <(find "$target_path" -type f -name "*.pak")
+                elif [[ "$type" == "PalSchema" ]]; then
+                    local dest="${mods_base_dir}/PalSchema/mods/${pkg_name}"
+                    ei "    [PalSchema] Deploying files from $target to $dest..."
+                    mkdir -p "$dest"
+                    if [[ -d "$target_path" ]]; then
+                        cp -r "$target_path"/. "$dest"/
+                    else
+                        cp -f "$target_path" "$dest"/
+                    fi
+                    chown -R steam:steam "$dest" 2>/dev/null || true
+                    deployed_palschema_mods+=("$pkg_name")
                 elif [[ "$type" == "UE4SS" ]]; then
                     ei "    [UE4SS] Deploying framework files from $target to $bin_dir..."
                     if [[ -d "$target_path" ]]; then
@@ -321,7 +412,7 @@ deploy_mod() {
             deploy_mod_via_rules "$dest_dir" "$pkg_name"
         else
             dbgi "  No InstallRule found in Info.json. Deploying via auto-discover..."
-            deploy_mod_auto_discover "$dest_dir"
+            deploy_mod_auto_discover "$dest_dir" "$pkg_name"
         fi
     else
         dbgi "  Warning: src_dir $src_dir does not exist."
@@ -570,12 +661,18 @@ for lmod in "${deployed_lua_mods[@]}"; do
     lua_mods_json=$(echo "$lua_mods_json" | jq --arg lmod "$lmod" '. += [$lmod]')
 done
 
+palschema_mods_json=$(jq -n '[]')
+for pmod in "${deployed_palschema_mods[@]}"; do
+    palschema_mods_json=$(echo "$palschema_mods_json" | jq --arg pmod "$pmod" '. += [$pmod]')
+done
+
 current_state_json=$(jq -n \
     --argjson versions "$versions_json" \
     --argjson paks "$paks_json" \
     --argjson ue4ss "$ue4ss_json" \
     --argjson lmods "$lua_mods_json" \
-    '{versions: $versions, deployed_paks: $paks, deployed_ue4ss_files: $ue4ss, deployed_lua_mods: $lmods}')
+    --argjson psmods "$palschema_mods_json" \
+    '{versions: $versions, deployed_paks: $paks, deployed_ue4ss_files: $ue4ss, deployed_lua_mods: $lmods, deployed_palschema_mods: $psmods}')
 
 changed=false
 if [[ ! -f "$state_file" ]]; then
