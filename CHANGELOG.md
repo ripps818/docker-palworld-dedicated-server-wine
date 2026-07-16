@@ -2,6 +2,11 @@
 
 [Back to main](README.md#changelog)
 
+## 2026-07-16
+
+- Added `NOSTEAM_ENABLED` environment variable - by @niklas2233
+  - Passes `-nosteam` to the server when enabled, keeping player UUIDs stable across Windows/Linux saves and skipping Steam auth - useful for LAN/offline play or migrating saves from a non-Steam-auth server.
+
 ## 2026-07-13
 
 - Optimized container startup time when `WINETRICK_ON_START` is enabled - by @ripps818

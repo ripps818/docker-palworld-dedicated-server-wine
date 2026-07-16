@@ -81,6 +81,10 @@ function start_server() {
         e "> Setting Multi-Core-Enhancements to enabled"
         START_OPTIONS+=("-useperfthreads" "-NoAsyncLoadingThread" "-UseMultithreadForDS")
     fi
+    if [[ -n $NOSTEAM_ENABLED ]] && [[ "${NOSTEAM_ENABLED,,}" == "true" ]]; then
+        e "> Setting -nosteam to enabled"
+        START_OPTIONS+=("-nosteam")
+    fi
     if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
         send_start_notification
     fi
