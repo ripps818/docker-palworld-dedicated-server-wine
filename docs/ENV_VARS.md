@@ -47,6 +47,8 @@ These settings control the behavior of the Docker container:
 | STEAM_USERNAME                        | Steam username to use for authenticated SteamCMD logins. Required for paid Workshop content (e.g. Palworld mods).                                    |                                | String                                |
 | STEAM_PASSWORD                        | Steam password corresponding to `STEAM_USERNAME`. Leave empty if password-less or verifying via cached login token.                                |                                | String                                |
 | WORKSHOP_MODS_DEBUG                   | Set to enabled will post debug messages for workshop mod downloads and installations                                                                | false                          | Boolean                               |
+| INSTALL_UE4SS_EXPERIMENTAL           | Downloads and installs Okaetsu's experimental version of the UE4SS framework.                                                                      | false                          | Boolean                               |
+| UE4SS_EXPERIMENTAL_URL               | The URL of the Okaetsu UE4SS experimental zip file.                                                                                                | `https://github.com/Okaetsu/RE-UE4SS/releases/download/experimental-palworld/UE4SS-Palworld.zip` | Url                                   |
 | WEBHOOK_ENABLED                       | Set to enabled will send webhook notifications, NEEDS `WEBHOOK_URL`                                                                                 | false                          | Boolean                               |
 | WEBHOOK_DEBUG_ENABLED                 | Set to enabled will enable feedback of curl and not use --silent                                                                                    | false                          | Boolean                               |
 | WEBHOOK_URL                           | Defines the url the webhook to send data to                                                                                                         |                                | Url                                   |
@@ -72,6 +74,18 @@ The container can automatically download, deploy, and update Steam Workshop mods
 - **`workshop-mods.txt`**: As a file-based alternative, you can create a file named `workshop-mods.txt` in the root of the game volume (i.e., `/palworld/workshop-mods.txt`). Add one Published File ID per line. Blank lines and lines starting with `#` are ignored. 
 
 If you use both `WORKSHOP_MOD_IDS` and `workshop-mods.txt`, the list of IDs from both sources is merged and deduplicated.
+
+### UE4SS Experimental Framework
+
+The container can automatically download, cache, and install Okaetsu's experimental version of the UE4SS framework (designed to resolve compatibility issues with certain mods).
+
+- **`INSTALL_UE4SS_EXPERIMENTAL`**: Set to `true` to enable.
+- **`UE4SS_EXPERIMENTAL_URL`**: (Optional) Customize the download URL of the UE4SS zip file. Defaults to `https://github.com/Okaetsu/RE-UE4SS/releases/download/experimental-palworld/UE4SS-Palworld.zip`.
+
+When enabled:
+- The zip file is downloaded and cached at `/palworld/Mods/ue4ss-experimental.zip`.
+- If an update is available on the upstream server, it will download it. If the server is offline or the check fails, it will gracefully fallback to the cached zip.
+- The framework is extracted and deployed as a Native Mod, ensuring it takes priority over any UE4SS installations deployed by Steam Workshop mods.
 
 ### Webhook environment variables
 

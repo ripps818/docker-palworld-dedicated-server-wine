@@ -83,6 +83,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     WORKSHOP_MOD_UPDATE_CRON="0 */6 * * *" \
     STEAM_USERNAME="" \
     STEAM_PASSWORD="" \
+    INSTALL_UE4SS_EXPERIMENTAL=false \
+    UE4SS_EXPERIMENTAL_URL="https://github.com/Okaetsu/RE-UE4SS/releases/download/experimental-palworld/UE4SS-Palworld.zip" \
     # Webhook-settings
     WEBHOOK_ENABLED=false \
     WEBHOOK_DEBUG_ENABLED=false \

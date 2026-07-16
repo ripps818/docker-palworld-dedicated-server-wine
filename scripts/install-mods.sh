@@ -23,6 +23,8 @@ fi
 GAME_ROOT="${GAME_ROOT:-/palworld}"
 STEAMCMD_PATH="${STEAMCMD_PATH:-/home/steam/steamcmd}"
 WORKSHOP_MODS_DEBUG="${WORKSHOP_MODS_DEBUG:-false}"
+INSTALL_UE4SS_EXPERIMENTAL="${INSTALL_UE4SS_EXPERIMENTAL:-false}"
+UE4SS_EXPERIMENTAL_URL="${UE4SS_EXPERIMENTAL_URL:-https://github.com/Okaetsu/RE-UE4SS/releases/download/experimental-palworld/UE4SS-Palworld.zip}"
 
 dbgi() {
     if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
@@ -111,6 +113,77 @@ if [[ ${#unique_ids[@]} -gt 0 ]]; then
     fi
 fi
 
+# Handle Okaetsu's UE4SS Experimental download/update/extraction
+ue4ss_exp_local_zip="${GAME_ROOT}/Mods/ue4ss-experimental.zip"
+ue4ss_exp_temp_zip="${GAME_ROOT}/Mods/ue4ss-experimental.zip.tmp"
+ue4ss_exp_target_dir="${GAME_ROOT}/Mods/NativeMods/ue4ss-experimental"
+
+if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]]; then
+    mkdir -p "${GAME_ROOT}/Mods"
+    mkdir -p "${GAME_ROOT}/Mods/NativeMods"
+    
+    download_ok=false
+    need_extract=false
+
+    if [[ -f "$ue4ss_exp_local_zip" ]]; then
+        ei "Checking for updates for UE4SS Experimental..."
+        # Use -z to only download if the remote file is newer
+        if curl -sSfL -z "$ue4ss_exp_local_zip" -o "$ue4ss_exp_temp_zip" "$UE4SS_EXPERIMENTAL_URL"; then
+            download_ok=true
+            if [[ -s "$ue4ss_exp_temp_zip" ]]; then
+                ei "Newer version of UE4SS Experimental downloaded successfully."
+                mv -f "$ue4ss_exp_temp_zip" "$ue4ss_exp_local_zip"
+                need_extract=true
+            else
+                ei "UE4SS Experimental is already up to date."
+                rm -f "$ue4ss_exp_temp_zip"
+                if [[ ! -d "$ue4ss_exp_target_dir" ]]; then
+                    need_extract=true
+                fi
+            fi
+        else
+            ew "Failed to check/download updates from $UE4SS_EXPERIMENTAL_URL. Falling back to cached version."
+            # Fall back to cached version if it exists
+            if [[ -f "$ue4ss_exp_local_zip" ]]; then
+                download_ok=true
+                if [[ ! -d "$ue4ss_exp_target_dir" ]]; then
+                    need_extract=true
+                fi
+            else
+                ee "No cached version of UE4SS Experimental found."
+            fi
+        fi
+    else
+        ei "Downloading UE4SS Experimental from $UE4SS_EXPERIMENTAL_URL..."
+        if curl -sSfL -o "$ue4ss_exp_local_zip" "$UE4SS_EXPERIMENTAL_URL"; then
+            download_ok=true
+            need_extract=true
+        else
+            ee "Failed to download UE4SS Experimental."
+        fi
+    fi
+
+    if [[ "$download_ok" == "true" && "$need_extract" == "true" ]]; then
+        ei "Extracting UE4SS Experimental..."
+        rm -rf "$ue4ss_exp_target_dir"
+        mkdir -p "$ue4ss_exp_target_dir"
+        if unzip -o "$ue4ss_exp_local_zip" -d "$ue4ss_exp_target_dir"; then
+            es "Successfully extracted UE4SS Experimental to $ue4ss_exp_target_dir"
+            chown -R steam:steam "$ue4ss_exp_target_dir" 2>/dev/null || true
+        else
+            ee "Failed to extract UE4SS Experimental zip file."
+            rm -rf "$ue4ss_exp_target_dir"
+        fi
+    fi
+else
+    # If the flag is disabled, ensure the NativeMods target directory is removed
+    # so it does not get deployed during the native mods phase.
+    if [[ -d "$ue4ss_exp_target_dir" ]]; then
+        ei "INSTALL_UE4SS_EXPERIMENTAL is disabled. Removing UE4SS Experimental native mod directory..."
+        rm -rf "$ue4ss_exp_target_dir"
+    fi
+fi
+
 # 3. Clean up previously deployed .pak files and UE4SS DLLs/Configs to handle removed mods
 state_file="${GAME_ROOT}/.workshop-mods-state.json"
 if [[ -f "$state_file" ]]; then
@@ -188,7 +261,7 @@ deploy_mod_auto_discover() {
     fi
 
     # Check for other dlls or settings
-    for file in "UE4SS-settings.ini" "Vindsent.dll"; do
+    for file in "UE4SS-settings.ini" "Vindsent.dll" "MemberVariableLayout.ini"; do
         if [[ -f "${dest_dir}/${file}" ]]; then
             ei "  Found UE4SS file: $file. Deploying..."
             cp -f "${dest_dir}/${file}" "${bin_dir}/"
@@ -368,7 +441,7 @@ deploy_mod_via_rules() {
                             chown steam:steam "${bin_dir}/dwmapi.dll" "${bin_dir}/UE4SS.dll" 2>/dev/null || true
                             deployed_ue4ss_files+=("dwmapi.dll" "UE4SS.dll")
                         fi
-                        for file in "UE4SS-settings.ini" "Vindsent.dll"; do
+                        for file in "UE4SS-settings.ini" "Vindsent.dll" "MemberVariableLayout.ini"; do
                             if [[ -f "${target_path}/${file}" ]]; then
                                 cp -f "${target_path}/${file}" "${bin_dir}/"
                                 chown steam:steam "${bin_dir}/${file}" 2>/dev/null || true
