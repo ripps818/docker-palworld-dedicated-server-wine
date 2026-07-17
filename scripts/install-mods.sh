@@ -188,6 +188,21 @@ else
     fi
 fi
 
+# Purge legacy UE4SS files/directories if experimental UE4SS is activated to prevent conflicts
+if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]]; then
+    ei "Purging legacy UE4SS files and Mods folder in Win64 directory to prevent conflicts..."
+    for file in "UE4SS.dll" "UE4SS-settings.ini" "Vindsent.dll" "MemberVariableLayout.ini" "UE4SS.log"; do
+        if [[ -f "${bin_dir}/${file}" ]]; then
+            dbgi "Removing legacy UE4SS file: ${file}"
+            rm -f "${bin_dir}/${file}"
+        fi
+    done
+    if [[ -d "${bin_dir}/Mods" ]]; then
+        dbgi "Removing legacy Mods folder"
+        rm -rf "${bin_dir}/Mods"
+    fi
+fi
+
 # 3. Clean up previously deployed .pak files and UE4SS DLLs/Configs to handle removed mods
 state_file="${GAME_ROOT}/.workshop-mods-state.json"
 if [[ -f "$state_file" ]]; then
