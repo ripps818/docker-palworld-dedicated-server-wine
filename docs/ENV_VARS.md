@@ -49,6 +49,8 @@ These settings control the behavior of the Docker container:
 | WORKSHOP_MODS_DEBUG                   | Set to enabled will post debug messages for workshop mod downloads and installations                                                                | false                          | Boolean                               |
 | INSTALL_UE4SS_EXPERIMENTAL           | Downloads and installs Okaetsu's experimental version of the UE4SS framework.                                                                      | false                          | Boolean                               |
 | UE4SS_EXPERIMENTAL_URL               | The URL of the Okaetsu UE4SS experimental zip file.                                                                                                | `https://github.com/Okaetsu/RE-UE4SS/releases/download/experimental-palworld/UE4SS-Palworld.zip` | Url                                   |
+| LOG_MAX_SIZE                          | The maximum size of each log file in bytes before it gets automatically rotated.                                                                   | `10485760` (10 MB)              | Integer                               |
+| LOG_MAX_BACKUPS                       | The maximum number of rotated backup log files to retain.                                                                                          | `5`                            | Integer                               |
 | WEBHOOK_ENABLED                       | Set to enabled will send webhook notifications, NEEDS `WEBHOOK_URL`                                                                                 | false                          | Boolean                               |
 | WEBHOOK_DEBUG_ENABLED                 | Set to enabled will enable feedback of curl and not use --silent                                                                                    | false                          | Boolean                               |
 | WEBHOOK_URL                           | Defines the url the webhook to send data to                                                                                                         |                                | Url                                   |
@@ -86,6 +88,15 @@ When enabled:
 - The zip file is downloaded and cached at `/palworld/Mods/ue4ss-experimental.zip`.
 - If an update is available on the upstream server, it will download it. If the server is offline or the check fails, it will gracefully fallback to the cached zip.
 - The framework is extracted and deployed as a Native Mod, ensuring it takes priority over any UE4SS installations deployed by Steam Workshop mods.
+
+### Universal Execution Logs & Rotation
+
+The container writes stdout and stderr logs for key scripts (`install-mods.sh`, `servermanager.sh`, and `backupmanager.sh`) to the `/palworld/logs/` directory.
+
+- **`LOG_MAX_SIZE`**: The file size limit in bytes before a log is rotated. Defaults to `10485760` (10 MB).
+- **`LOG_MAX_BACKUPS`**: The maximum number of rotated backups to retain. Defaults to `5`.
+
+Whenever a script executes, it checks its log size. If it exceeds `LOG_MAX_SIZE`, the log is rotated (e.g., `install-mods.log` moves to `install-mods.log.1`, `.1` moves to `.2`, etc.) and a clean log file is started, preventing disk space issues.
 
 ### Webhook environment variables
 

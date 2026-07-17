@@ -85,6 +85,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     STEAM_PASSWORD="" \
     INSTALL_UE4SS_EXPERIMENTAL=false \
     UE4SS_EXPERIMENTAL_URL="https://github.com/Okaetsu/RE-UE4SS/releases/download/experimental-palworld/UE4SS-Palworld.zip" \
+    LOG_MAX_SIZE=10485760 \
+    LOG_MAX_BACKUPS=5 \
     # Webhook-settings
     WEBHOOK_ENABLED=false \
     WEBHOOK_DEBUG_ENABLED=false \

@@ -2,6 +2,7 @@
 # shellcheck disable=SC1091,SC2012,SC2004
 
 source /includes/colors.sh
+source /includes/logging.sh
 source /includes/restapi.sh
 
 # Default values if the environment variables exist
@@ -151,7 +152,7 @@ function create_backup() {
         fi
     fi
 
-    if ! tar cfz "${LOCAL_BACKUP_PATH}/${backup_file_name}" -C "${LOCAL_GAME_PATH}/" --exclude "backup" "Saved" ; then
+    if ! run_logged tar cfz "${LOCAL_BACKUP_PATH}/${backup_file_name}" -C "${LOCAL_GAME_PATH}/" --exclude "backup" "Saved" ; then
         broadcast_backup_failed
         ee ">>> Backup failed"
     else
@@ -162,7 +163,7 @@ function create_backup() {
     fi
 
     if [[ -n ${LOCAL_BACKUP_RETENTION_POLICY} ]] && [[ "${LOCAL_BACKUP_RETENTION_POLICY,,}" == "true" ]] && [[ ${LOCAL_BACKUP_RETENTION_AMOUNT_TO_KEEP} =~ ^[0-9]+$ ]]; then
-        ls -1t "${LOCAL_BACKUP_PATH}"/saved-*.tar.gz | tail -n +"$(($LOCAL_BACKUP_RETENTION_AMOUNT_TO_KEEP + 1))" | xargs -d '\n' rm -f --
+        run_logged bash -c "ls -1t \"${LOCAL_BACKUP_PATH}\"/saved-*.tar.gz | tail -n +\"$(($LOCAL_BACKUP_RETENTION_AMOUNT_TO_KEEP + 1))\" | xargs -d '\n' rm -f --"
     fi
 }
 

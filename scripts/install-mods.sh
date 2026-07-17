@@ -26,6 +26,9 @@ WORKSHOP_MODS_DEBUG="${WORKSHOP_MODS_DEBUG:-false}"
 INSTALL_UE4SS_EXPERIMENTAL="${INSTALL_UE4SS_EXPERIMENTAL:-false}"
 UE4SS_EXPERIMENTAL_URL="${UE4SS_EXPERIMENTAL_URL:-https://github.com/Okaetsu/RE-UE4SS/releases/download/experimental-palworld/UE4SS-Palworld.zip}"
 
+# Load shared logging library
+source /includes/logging.sh
+
 dbgi() {
     if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
         echo -e "\e[36mDEBUG:\e[0m $*"
@@ -108,7 +111,7 @@ if [[ ${#unique_ids[@]} -gt 0 ]]; then
 
     # Run steamcmd, warn on failure but keep going
     ei "Running steamcmd..."
-    if ! steamcmd "${steamcmd_args[@]}"; then
+    if ! run_logged steamcmd "${steamcmd_args[@]}"; then
         ew "steamcmd reported errors during workshop download, will check downloaded directories..."
     fi
 fi
@@ -128,15 +131,15 @@ if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]]; then
     if [[ -f "$ue4ss_exp_local_zip" ]]; then
         ei "Checking for updates for UE4SS Experimental..."
         # Use -z to only download if the remote file is newer
-        if curl -sSfL -z "$ue4ss_exp_local_zip" -o "$ue4ss_exp_temp_zip" "$UE4SS_EXPERIMENTAL_URL"; then
+        if run_logged curl -sSfL -z "$ue4ss_exp_local_zip" -o "$ue4ss_exp_temp_zip" "$UE4SS_EXPERIMENTAL_URL"; then
             download_ok=true
             if [[ -s "$ue4ss_exp_temp_zip" ]]; then
                 ei "Newer version of UE4SS Experimental downloaded successfully."
-                mv -f "$ue4ss_exp_temp_zip" "$ue4ss_exp_local_zip"
+                run_logged mv -f "$ue4ss_exp_temp_zip" "$ue4ss_exp_local_zip"
                 need_extract=true
             else
                 ei "UE4SS Experimental is already up to date."
-                rm -f "$ue4ss_exp_temp_zip"
+                run_logged rm -f "$ue4ss_exp_temp_zip"
                 if [[ ! -d "$ue4ss_exp_target_dir" ]]; then
                     need_extract=true
                 fi
@@ -155,7 +158,7 @@ if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]]; then
         fi
     else
         ei "Downloading UE4SS Experimental from $UE4SS_EXPERIMENTAL_URL..."
-        if curl -sSfL -o "$ue4ss_exp_local_zip" "$UE4SS_EXPERIMENTAL_URL"; then
+        if run_logged curl -sSfL -o "$ue4ss_exp_local_zip" "$UE4SS_EXPERIMENTAL_URL"; then
             download_ok=true
             need_extract=true
         else
@@ -165,14 +168,14 @@ if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]]; then
 
     if [[ "$download_ok" == "true" && "$need_extract" == "true" ]]; then
         ei "Extracting UE4SS Experimental..."
-        rm -rf "$ue4ss_exp_target_dir"
+        run_logged rm -rf "$ue4ss_exp_target_dir"
         mkdir -p "$ue4ss_exp_target_dir"
-        if unzip -o "$ue4ss_exp_local_zip" -d "$ue4ss_exp_target_dir"; then
+        if run_logged unzip -o "$ue4ss_exp_local_zip" -d "$ue4ss_exp_target_dir"; then
             es "Successfully extracted UE4SS Experimental to $ue4ss_exp_target_dir"
             chown -R steam:steam "$ue4ss_exp_target_dir" 2>/dev/null || true
         else
             ee "Failed to extract UE4SS Experimental zip file."
-            rm -rf "$ue4ss_exp_target_dir"
+            run_logged rm -rf "$ue4ss_exp_target_dir"
         fi
     fi
 else
@@ -180,7 +183,7 @@ else
     # so it does not get deployed during the native mods phase.
     if [[ -d "$ue4ss_exp_target_dir" ]]; then
         ei "INSTALL_UE4SS_EXPERIMENTAL is disabled. Removing UE4SS Experimental native mod directory..."
-        rm -rf "$ue4ss_exp_target_dir"
+        run_logged rm -rf "$ue4ss_exp_target_dir"
     fi
 fi
 
@@ -192,28 +195,28 @@ if [[ -f "$state_file" ]]; then
     jq -r '.deployed_paks[]? // empty' "$state_file" 2>/dev/null | while read -r pak; do
         if [[ -n "$pak" ]]; then
             dbgi "Removing old deployed pak: ${pak}"
-            rm -f "${GAME_ROOT}/Pal/Content/Paks/LogicMods/${pak}"
+            run_logged rm -f "${GAME_ROOT}/Pal/Content/Paks/LogicMods/${pak}"
         fi
     done
     # Read deployed_ue4ss_files array and delete each file
     jq -r '.deployed_ue4ss_files[]? // empty' "$state_file" 2>/dev/null | while read -r file; do
         if [[ -n "$file" ]]; then
             dbgi "Removing old deployed UE4SS file: ${file}"
-            rm -f "${bin_dir}/${file}"
+            run_logged rm -f "${bin_dir}/${file}"
         fi
     done
     # Read deployed_lua_mods array and delete each directory
     jq -r '.deployed_lua_mods[]? // empty' "$state_file" 2>/dev/null | while read -r lua_mod; do
         if [[ -n "$lua_mod" ]]; then
             dbgi "Removing old deployed Lua mod directory: ${lua_mod}"
-            rm -rf "${mods_base_dir}/${lua_mod}"
+            run_logged rm -rf "${mods_base_dir}/${lua_mod}"
         fi
     done
     # Read deployed_palschema_mods array and delete each directory
     jq -r '.deployed_palschema_mods[]? // empty' "$state_file" 2>/dev/null | while read -r palschema_mod; do
         if [[ -n "$palschema_mod" ]]; then
             dbgi "Removing old deployed PalSchema mod directory: ${palschema_mod}"
-            rm -rf "${mods_base_dir}/PalSchema/mods/${palschema_mod}"
+            run_logged rm -rf "${mods_base_dir}/PalSchema/mods/${palschema_mod}"
         fi
     done
 fi
@@ -240,7 +243,7 @@ deploy_mod_auto_discover() {
         if [[ -f "$pak_file" ]]; then
             local pak_name=$(basename "$pak_file")
             ei "  Found logic mod: $pak_name. Deploying to LogicMods..."
-            cp -f "$pak_file" "$logic_mods_dir/"
+            run_logged cp -f "$pak_file" "$logic_mods_dir/"
             chown steam:steam "$logic_mods_dir/$pak_name" 2>/dev/null || true
             deployed_paks+=("$pak_name")
         fi
@@ -249,13 +252,13 @@ deploy_mod_auto_discover() {
     # 4b. Handle UE4SS framework files (dwmapi.dll, UE4SS.dll, UE4SS-settings.ini)
     if [[ -f "${dest_dir}/dwmapi.dll" ]]; then
         ei "  Found dwmapi.dll. Deploying..."
-        cp -f "${dest_dir}/dwmapi.dll" "${bin_dir}/"
+        run_logged cp -f "${dest_dir}/dwmapi.dll" "${bin_dir}/"
         chown steam:steam "${bin_dir}/dwmapi.dll" 2>/dev/null || true
         deployed_ue4ss_files+=("dwmapi.dll")
     elif [[ -f "${dest_dir}/UE4SS.dll" ]]; then
         ei "  Found UE4SS.dll. Deploying and copying to dwmapi.dll..."
-        cp -f "${dest_dir}/UE4SS.dll" "${bin_dir}/dwmapi.dll"
-        cp -f "${dest_dir}/UE4SS.dll" "${bin_dir}/UE4SS.dll"
+        run_logged cp -f "${dest_dir}/UE4SS.dll" "${bin_dir}/dwmapi.dll"
+        run_logged cp -f "${dest_dir}/UE4SS.dll" "${bin_dir}/UE4SS.dll"
         chown steam:steam "${bin_dir}/dwmapi.dll" "${bin_dir}/UE4SS.dll" 2>/dev/null || true
         deployed_ue4ss_files+=("dwmapi.dll" "UE4SS.dll")
     fi
@@ -264,7 +267,7 @@ deploy_mod_auto_discover() {
     for file in "UE4SS-settings.ini" "Vindsent.dll" "MemberVariableLayout.ini"; do
         if [[ -f "${dest_dir}/${file}" ]]; then
             ei "  Found UE4SS file: $file. Deploying..."
-            cp -f "${dest_dir}/${file}" "${bin_dir}/"
+            run_logged cp -f "${dest_dir}/${file}" "${bin_dir}/"
             chown steam:steam "${bin_dir}/${file}" 2>/dev/null || true
             deployed_ue4ss_files+=("$file")
         fi
@@ -273,7 +276,7 @@ deploy_mod_auto_discover() {
     # If this is a UE4SS mod with a Mods folder, copy its contents to Mods directory
     if [[ -d "${dest_dir}/Mods" ]]; then
         ei "  Found UE4SS Mods folder. Deploying contents to ${mods_base_dir}..."
-        cp -r "${dest_dir}/Mods"/. "${mods_base_dir}"/
+        run_logged cp -r "${dest_dir}/Mods"/. "${mods_base_dir}"/
         chown -R steam:steam "${mods_base_dir}" 2>/dev/null || true
         # Track deployed Lua mod directories or PalSchema mods for state cleanup
         for d in "${dest_dir}/Mods"/*; do
@@ -298,7 +301,7 @@ deploy_mod_auto_discover() {
     if [[ -d "${dest_dir}/PalSchema/mods" ]]; then
         ei "  Found PalSchema mods directory. Deploying..."
         mkdir -p "${mods_base_dir}/PalSchema/mods"
-        cp -r "${dest_dir}/PalSchema/mods"/. "${mods_base_dir}/PalSchema/mods"/
+        run_logged cp -r "${dest_dir}/PalSchema/mods"/. "${mods_base_dir}/PalSchema/mods"/
         chown -R steam:steam "${mods_base_dir}/PalSchema/mods" 2>/dev/null || true
         for d in "${dest_dir}/PalSchema/mods"/*; do
             if [[ -d "$d" ]]; then
@@ -309,7 +312,7 @@ deploy_mod_auto_discover() {
         # Check if it is the PalSchema framework itself
         if [[ -f "${dest_dir}/PalSchema/scripts/main.lua" || -f "${dest_dir}/PalSchema/main.lua" ]]; then
             ei "  Found PalSchema framework. Deploying as Lua mod..."
-            cp -r "${dest_dir}/PalSchema" "${mods_base_dir}/"
+            run_logged cp -r "${dest_dir}/PalSchema" "${mods_base_dir}/"
             chown -R steam:steam "${mods_base_dir}/PalSchema" 2>/dev/null || true
             deployed_lua_mods+=("PalSchema")
         else
@@ -317,14 +320,14 @@ deploy_mod_auto_discover() {
             ei "  Found PalSchema mod folder. Deploying to PalSchema/mods/${pkg_name}..."
             local dest="${mods_base_dir}/PalSchema/mods/${pkg_name}"
             mkdir -p "$dest"
-            cp -r "${dest_dir}/PalSchema"/. "$dest"/
+            run_logged cp -r "${dest_dir}/PalSchema"/. "$dest"/
             chown -R steam:steam "$dest" 2>/dev/null || true
             deployed_palschema_mods+=("$pkg_name")
         fi
     elif [[ -d "${dest_dir}/mods" ]]; then
         ei "  Found PalSchema mods directory (lowercase mods). Deploying..."
         mkdir -p "${mods_base_dir}/PalSchema/mods"
-        cp -r "${dest_dir}/mods"/. "${mods_base_dir}/PalSchema/mods"/
+        run_logged cp -r "${dest_dir}/mods"/. "${mods_base_dir}/PalSchema/mods"/
         chown -R steam:steam "${mods_base_dir}/PalSchema/mods" 2>/dev/null || true
         for d in "${dest_dir}/mods"/*; do
             if [[ -d "$d" ]]; then
@@ -346,7 +349,7 @@ deploy_mod_auto_discover() {
         ei "  Found flat PalSchema mod. Deploying to PalSchema/mods/${pkg_name}..."
         local dest="${mods_base_dir}/PalSchema/mods/${pkg_name}"
         mkdir -p "$dest"
-        cp -r "${dest_dir}"/. "$dest"/
+        run_logged cp -r "${dest_dir}"/. "$dest"/
         chown -R steam:steam "$dest" 2>/dev/null || true
         deployed_palschema_mods+=("$pkg_name")
     fi
@@ -399,9 +402,9 @@ deploy_mod_via_rules() {
                     ei "    [Lua] Copying $target to $dest..."
                     mkdir -p "$dest"
                     if [[ -d "$target_path" ]]; then
-                        cp -r "$target_path"/. "$dest"/
+                        run_logged cp -r "$target_path"/. "$dest"/
                     else
-                        cp -f "$target_path" "$dest"/
+                        run_logged cp -f "$target_path" "$dest"/
                     fi
                     chown -R steam:steam "$dest" 2>/dev/null || true
                     deployed_lua_mods+=("$pkg_name")
@@ -412,7 +415,7 @@ deploy_mod_via_rules() {
                     # Find and copy all .pak files in the target directory
                     while read -r pak_file; do
                         local pak_name=$(basename "$pak_file")
-                        cp -f "$pak_file" "$logic_mods_dir/"
+                        run_logged cp -f "$pak_file" "$logic_mods_dir/"
                         chown steam:steam "$logic_mods_dir/$pak_name" 2>/dev/null || true
                         deployed_paks+=("$pak_name")
                     done < <(find "$target_path" -type f -name "*.pak")
@@ -421,9 +424,9 @@ deploy_mod_via_rules() {
                     ei "    [PalSchema] Deploying files from $target to $dest..."
                     mkdir -p "$dest"
                     if [[ -d "$target_path" ]]; then
-                        cp -r "$target_path"/. "$dest"/
+                        run_logged cp -r "$target_path"/. "$dest"/
                     else
-                        cp -f "$target_path" "$dest"/
+                        run_logged cp -f "$target_path" "$dest"/
                     fi
                     chown -R steam:steam "$dest" 2>/dev/null || true
                     deployed_palschema_mods+=("$pkg_name")
@@ -432,25 +435,25 @@ deploy_mod_via_rules() {
                     if [[ -d "$target_path" ]]; then
                         # Copy dwmapi.dll, UE4SS.dll, UE4SS-settings.ini, etc.
                         if [[ -f "${target_path}/dwmapi.dll" ]]; then
-                            cp -f "${target_path}/dwmapi.dll" "${bin_dir}/"
+                            run_logged cp -f "${target_path}/dwmapi.dll" "${bin_dir}/"
                             chown steam:steam "${bin_dir}/dwmapi.dll" 2>/dev/null || true
                             deployed_ue4ss_files+=("dwmapi.dll")
                         elif [[ -f "${target_path}/UE4SS.dll" ]]; then
-                            cp -f "${target_path}/UE4SS.dll" "${bin_dir}/dwmapi.dll"
-                            cp -f "${target_path}/UE4SS.dll" "${bin_dir}/UE4SS.dll"
+                            run_logged cp -f "${target_path}/UE4SS.dll" "${bin_dir}/dwmapi.dll"
+                            run_logged cp -f "${target_path}/UE4SS.dll" "${bin_dir}/UE4SS.dll"
                             chown steam:steam "${bin_dir}/dwmapi.dll" "${bin_dir}/UE4SS.dll" 2>/dev/null || true
                             deployed_ue4ss_files+=("dwmapi.dll" "UE4SS.dll")
                         fi
                         for file in "UE4SS-settings.ini" "Vindsent.dll" "MemberVariableLayout.ini"; do
                             if [[ -f "${target_path}/${file}" ]]; then
-                                cp -f "${target_path}/${file}" "${bin_dir}/"
+                                run_logged cp -f "${target_path}/${file}" "${bin_dir}/"
                                 chown steam:steam "${bin_dir}/${file}" 2>/dev/null || true
                                 deployed_ue4ss_files+=("$file")
                             fi
                         done
                         # Copy Mods directory if exists
                         if [[ -d "${target_path}/Mods" ]]; then
-                            cp -r "${target_path}/Mods"/. "${mods_base_dir}"/
+                            run_logged cp -r "${target_path}/Mods"/. "${mods_base_dir}"/
                             chown -R steam:steam "${mods_base_dir}" 2>/dev/null || true
                             # Track deployed Lua mod directories for state cleanup
                             for d in "${target_path}/Mods"/*; do
@@ -478,10 +481,10 @@ deploy_mod() {
     if [[ -d "$src_dir" ]]; then
         dbgi "  Clearing and recreating $dest_dir"
         # Replace existing copy of the raw mod
-        rm -rf "$dest_dir"
+        run_logged rm -rf "$dest_dir"
         mkdir -p "$dest_dir"
         dbgi "  Copying files from $src_dir to $dest_dir"
-        cp -r "$src_dir"/. "$dest_dir"/
+        run_logged cp -r "$src_dir"/. "$dest_dir"/
 
         local info_json="${dest_dir}/Info.json"
         if [[ -f "$info_json" ]] && jq -e '.InstallRule' "$info_json" >/dev/null 2>&1; then
@@ -628,7 +631,7 @@ if [[ -f "$ini_file" ]]; then
         echo "${pkg}=true" >> "$new_ini"
     done
     
-    mv "$new_ini" "$ini_file"
+    run_logged mv "$new_ini" "$ini_file"
     chmod 644 "$ini_file"
     chown steam:steam "$ini_file" 2>/dev/null || true
     es "Updated ActiveModList in PalModSettings.ini successfully."
@@ -690,7 +693,7 @@ if [[ -f "$mods_txt_file" ]]; then
         fi
     done
     
-    mv "$new_mods_txt" "$mods_txt_file"
+    run_logged mv "$new_mods_txt" "$mods_txt_file"
     chmod 644 "$mods_txt_file"
     chown steam:steam "$mods_txt_file" 2>/dev/null || true
     es "Updated mods.txt successfully."
