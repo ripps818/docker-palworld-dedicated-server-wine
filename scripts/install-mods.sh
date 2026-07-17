@@ -34,7 +34,11 @@ dbgi() {
 
 # Locate the game's executable directory and the Mods base directory
 bin_dir=$(dirname "${GAME_BIN:-/palworld/Pal/Binaries/Win64/PalServer-Win64-Shipping-Cmd.exe}")
-mods_base_dir="${bin_dir}/Mods"
+if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]] || [[ -d "${bin_dir}/ue4ss" ]]; then
+    mods_base_dir="${bin_dir}/ue4ss/Mods"
+else
+    mods_base_dir="${bin_dir}/Mods"
+fi
 
 # 1. Mod ID sources: WORKSHOP_MOD_IDS (env) and /palworld/workshop-mods.txt
 mod_ids=()
@@ -188,6 +192,13 @@ fi
 state_file="${GAME_ROOT}/.workshop-mods-state.json"
 if [[ -f "$state_file" ]]; then
     ei "Cleaning up previously deployed files from state..."
+    
+    # Determine old mods directory from state file to ensure proper cleanup
+    old_mods_base_dir="${bin_dir}/Mods"
+    if jq -e '.deployed_ue4ss_files[] | select(. == "ue4ss")' "$state_file" >/dev/null 2>&1; then
+        old_mods_base_dir="${bin_dir}/ue4ss/Mods"
+    fi
+
     # Read deployed_paks array and delete each file
     jq -r '.deployed_paks[]? // empty' "$state_file" 2>/dev/null | while read -r pak; do
         if [[ -n "$pak" ]]; then
@@ -195,27 +206,34 @@ if [[ -f "$state_file" ]]; then
             rm -f "${GAME_ROOT}/Pal/Content/Paks/LogicMods/${pak}"
         fi
     done
-    # Read deployed_ue4ss_files array and delete each file
+    # Read deployed_ue4ss_files array and delete each file/directory
     jq -r '.deployed_ue4ss_files[]? // empty' "$state_file" 2>/dev/null | while read -r file; do
         if [[ -n "$file" ]]; then
             dbgi "Removing old deployed UE4SS file: ${file}"
-            rm -f "${bin_dir}/${file}"
+            rm -rf "${bin_dir}/${file}"
         fi
     done
     # Read deployed_lua_mods array and delete each directory
     jq -r '.deployed_lua_mods[]? // empty' "$state_file" 2>/dev/null | while read -r lua_mod; do
         if [[ -n "$lua_mod" ]]; then
             dbgi "Removing old deployed Lua mod directory: ${lua_mod}"
-            rm -rf "${mods_base_dir}/${lua_mod}"
+            rm -rf "${old_mods_base_dir}/${lua_mod}"
         fi
     done
     # Read deployed_palschema_mods array and delete each directory
     jq -r '.deployed_palschema_mods[]? // empty' "$state_file" 2>/dev/null | while read -r palschema_mod; do
         if [[ -n "$palschema_mod" ]]; then
             dbgi "Removing old deployed PalSchema mod directory: ${palschema_mod}"
-            rm -rf "${mods_base_dir}/PalSchema/mods/${palschema_mod}"
+            rm -rf "${old_mods_base_dir}/PalSchema/mods/${palschema_mod}"
         fi
     done
+fi
+
+# Re-evaluate mods_base_dir in case UE4SS directories were cleaned up or changed
+if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]] || [[ -d "${bin_dir}/ue4ss" ]]; then
+    mods_base_dir="${bin_dir}/ue4ss/Mods"
+else
+    mods_base_dir="${bin_dir}/Mods"
 fi
 
 # Arrays to keep track of currently deployed files for the new state
@@ -247,6 +265,13 @@ deploy_mod_auto_discover() {
     done < <(find "$dest_dir" -type f -name "*.pak")
 
     # 4b. Handle UE4SS framework files (dwmapi.dll, UE4SS.dll, UE4SS-settings.ini)
+    if [[ -d "${dest_dir}/ue4ss" ]]; then
+        ei "  Found ue4ss folder. Deploying..."
+        cp -r "${dest_dir}/ue4ss" "${bin_dir}/"
+        chown -R steam:steam "${bin_dir}/ue4ss" 2>/dev/null || true
+        deployed_ue4ss_files+=("ue4ss")
+    fi
+
     if [[ -f "${dest_dir}/dwmapi.dll" ]]; then
         ei "  Found dwmapi.dll. Deploying..."
         cp -f "${dest_dir}/dwmapi.dll" "${bin_dir}/"
@@ -430,6 +455,13 @@ deploy_mod_via_rules() {
                 elif [[ "$type" == "UE4SS" ]]; then
                     ei "    [UE4SS] Deploying framework files from $target to $bin_dir..."
                     if [[ -d "$target_path" ]]; then
+                        # Check for the modern UE4SS v3+ layout 'ue4ss' folder
+                        if [[ -d "${target_path}/ue4ss" ]]; then
+                            ei "    [UE4SS] Found ue4ss folder. Deploying..."
+                            cp -r "${target_path}/ue4ss" "${bin_dir}/"
+                            chown -R steam:steam "${bin_dir}/ue4ss" 2>/dev/null || true
+                            deployed_ue4ss_files+=("ue4ss")
+                        fi
                         # Copy dwmapi.dll, UE4SS.dll, UE4SS-settings.ini, etc.
                         if [[ -f "${target_path}/dwmapi.dll" ]]; then
                             cp -f "${target_path}/dwmapi.dll" "${bin_dir}/"
