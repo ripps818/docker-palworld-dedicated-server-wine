@@ -587,6 +587,7 @@ deploy_mod_via_rules() {
                         cp -f "$target_path" "$dest"/
                     fi
                     chown -R steam:steam "$dest" 2>/dev/null || true
+                    dbgi "    [Lua Rule] Absolute destination: ${dest}"
                     deployed_lua_mods+=("$pkg_name")
                 elif [[ "$type" == "Paks" ]]; then
                     local logic_mods_dir="${GAME_ROOT}/Pal/Content/Paks/LogicMods"
@@ -597,6 +598,7 @@ deploy_mod_via_rules() {
                         local pak_name=$(basename "$pak_file")
                         cp -f "$pak_file" "$logic_mods_dir/"
                         chown steam:steam "$logic_mods_dir/$pak_name" 2>/dev/null || true
+                        dbgi "    [Pak Rule] Absolute destination: ${logic_mods_dir}/${pak_name}"
                         deployed_paks+=("$pak_name")
                     done < <(find "$target_path" -type f -name "*.pak")
                 elif [[ "$type" == "PalSchema" ]]; then
@@ -609,6 +611,7 @@ deploy_mod_via_rules() {
                         cp -f "$target_path" "$dest"/
                     fi
                     chown -R steam:steam "$dest" 2>/dev/null || true
+                    dbgi "    [PalSchema Rule] Absolute destination: ${dest}"
                     deployed_palschema_mods+=("$pkg_name")
                 elif [[ "$type" == "UE4SS" ]]; then
                     ei "    [UE4SS] Deploying framework files from $target to $bin_dir..."
@@ -618,23 +621,27 @@ deploy_mod_via_rules() {
                             ei "    [UE4SS] Found ue4ss folder. Deploying..."
                             cp -r "${target_path}/ue4ss" "${bin_dir}/"
                             chown -R steam:steam "${bin_dir}/ue4ss" 2>/dev/null || true
+                            dbgi "    [UE4SS Rule] Absolute destination: ${bin_dir}/ue4ss"
                             deployed_ue4ss_files+=("ue4ss")
                         fi
                         # Copy dwmapi.dll, UE4SS.dll, UE4SS-settings.ini, etc.
                         if [[ -f "${target_path}/dwmapi.dll" ]]; then
                             cp -f "${target_path}/dwmapi.dll" "${bin_dir}/"
                             chown steam:steam "${bin_dir}/dwmapi.dll" 2>/dev/null || true
+                            dbgi "    [UE4SS Rule] Absolute destination: ${bin_dir}/dwmapi.dll"
                             deployed_ue4ss_files+=("dwmapi.dll")
                         elif [[ -f "${target_path}/UE4SS.dll" ]]; then
                             cp -f "${target_path}/UE4SS.dll" "${bin_dir}/dwmapi.dll"
                             cp -f "${target_path}/UE4SS.dll" "${bin_dir}/UE4SS.dll"
                             chown steam:steam "${bin_dir}/dwmapi.dll" "${bin_dir}/UE4SS.dll" 2>/dev/null || true
+                            dbgi "    [UE4SS Rule] Absolute destination: ${bin_dir}/dwmapi.dll and ${bin_dir}/UE4SS.dll"
                             deployed_ue4ss_files+=("dwmapi.dll" "UE4SS.dll")
                         fi
                         for file in "UE4SS-settings.ini" "Vindsent.dll" "MemberVariableLayout.ini"; do
                             if [[ -f "${target_path}/${file}" ]]; then
                                 cp -f "${target_path}/${file}" "${bin_dir}/"
                                 chown steam:steam "${bin_dir}/${file}" 2>/dev/null || true
+                                dbgi "    [UE4SS Rule] Absolute destination: ${bin_dir}/${file}"
                                 deployed_ue4ss_files+=("$file")
                             fi
                         done
