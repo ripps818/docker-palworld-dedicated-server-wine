@@ -32,13 +32,9 @@ dbgi() {
     fi
 }
 
-# Locate the game's executable directory and the Mods base directory
+# Locate the game's executable directory. The Mods base directory is resolved
+# later from the UE4SS package layout being installed.
 bin_dir=$(dirname "${GAME_BIN:-/palworld/Pal/Binaries/Win64/PalServer-Win64-Shipping-Cmd.exe}")
-if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]] || [[ -d "${bin_dir}/ue4ss" ]]; then
-    mods_base_dir="${bin_dir}/ue4ss/Mods"
-else
-    mods_base_dir="${bin_dir}/Mods"
-fi
 
 # 1. Mod ID sources: WORKSHOP_MOD_IDS (env) and /palworld/workshop-mods.txt
 mod_ids=()
@@ -188,6 +184,42 @@ else
     fi
 fi
 
+# Report whether a package installs UE4SS at the Win64 root or in Win64/ue4ss.
+# Root-level proxy/framework DLLs take precedence over a bundled ue4ss folder.
+detect_ue4ss_layout() {
+    local package_dir="$1"
+    local candidate
+    local nested_found=false
+    local candidates=("$package_dir")
+    local info_json="${package_dir}/Info.json"
+
+    if [[ -f "$info_json" ]]; then
+        while IFS= read -r target; do
+            local clean_target="${target#./}"
+            clean_target="${clean_target#/}"
+            if [[ "$clean_target" == "." || -z "$clean_target" ]]; then
+                candidates+=("$package_dir")
+            else
+                candidates+=("${package_dir}/${clean_target}")
+            fi
+        done < <(jq -r '.InstallRule[]? | select(.Type == "UE4SS") | .Targets[]? // empty' "$info_json" 2>/dev/null)
+    fi
+
+    for candidate in "${candidates[@]}"; do
+        if [[ -f "${candidate}/UE4SS.dll" || -f "${candidate}/dwmapi.dll" ]]; then
+            echo "root"
+            return
+        fi
+        if [[ -d "${candidate}/ue4ss" ]]; then
+            nested_found=true
+        fi
+    done
+
+    if [[ "$nested_found" == "true" ]]; then
+        echo "nested"
+    fi
+}
+
 # Purge legacy UE4SS files/directories if experimental UE4SS is activated to prevent conflicts
 if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]]; then
     ei "Purging legacy UE4SS files and Mods folder in Win64 directory to prevent conflicts..."
@@ -205,12 +237,66 @@ fi
 
 # 3. Clean up previously deployed .pak files and UE4SS DLLs/Configs to handle removed mods
 state_file="${GAME_ROOT}/.workshop-mods-state.json"
+
+# Resolve one Mods destination for this run from the UE4SS payloads being
+# installed. If this run has no framework payload, retain the recorded layout.
+ue4ss_mods_layout=""
+nested_ue4ss_found=false
+ue4ss_package_dirs=()
+for id in "${unique_ids[@]}"; do
+    for workshop_root in \
+        "/home/steam/Steam/steamapps/workshop/content/1623730" \
+        "/home/steam/.steam/steam/steamapps/workshop/content/1623730" \
+        "/home/steam/.local/share/Steam/steamapps/workshop/content/1623730"; do
+        if [[ -d "${workshop_root}/${id}" ]]; then
+            ue4ss_package_dirs+=("${workshop_root}/${id}")
+            break
+        fi
+    done
+done
+if [[ -d "${GAME_ROOT}/Mods/NativeMods" ]]; then
+    for package_dir in "${GAME_ROOT}/Mods/NativeMods"/*; do
+        if [[ -d "$package_dir" ]]; then
+            ue4ss_package_dirs+=("$package_dir")
+        fi
+    done
+fi
+
+for package_dir in "${ue4ss_package_dirs[@]}"; do
+    package_layout=$(detect_ue4ss_layout "$package_dir")
+    if [[ "$package_layout" == "root" ]]; then
+        ue4ss_mods_layout="root"
+        break
+    elif [[ "$package_layout" == "nested" ]]; then
+        nested_ue4ss_found=true
+    fi
+done
+if [[ -z "$ue4ss_mods_layout" && "$nested_ue4ss_found" == "true" ]]; then
+    ue4ss_mods_layout="nested"
+fi
+if [[ -z "$ue4ss_mods_layout" && -f "$state_file" ]]; then
+    recorded_layout=$(jq -r '.ue4ss_mods_layout // empty' "$state_file" 2>/dev/null || true)
+    if [[ "$recorded_layout" == "root" || "$recorded_layout" == "nested" ]]; then
+        ue4ss_mods_layout="$recorded_layout"
+    fi
+fi
+ue4ss_mods_layout="${ue4ss_mods_layout:-root}"
+if [[ "$ue4ss_mods_layout" == "nested" ]]; then
+    mods_base_dir="${bin_dir}/ue4ss/Mods"
+else
+    mods_base_dir="${bin_dir}/Mods"
+fi
+dbgi "Resolved UE4SS Mods layout '${ue4ss_mods_layout}' to ${mods_base_dir}"
 if [[ -f "$state_file" ]]; then
     ei "Cleaning up previously deployed files from state..."
     
     # Determine old mods directory from state file to ensure proper cleanup
     old_mods_base_dir="${bin_dir}/Mods"
-    if jq -e '.deployed_ue4ss_files[] | select(. == "ue4ss")' "$state_file" >/dev/null 2>&1; then
+    old_ue4ss_mods_layout=$(jq -r '.ue4ss_mods_layout // empty' "$state_file" 2>/dev/null || true)
+    if [[ "$old_ue4ss_mods_layout" == "nested" ]]; then
+        old_mods_base_dir="${bin_dir}/ue4ss/Mods"
+    elif [[ -z "$old_ue4ss_mods_layout" ]] && jq -e '.deployed_ue4ss_files[] | select(. == "ue4ss")' "$state_file" >/dev/null 2>&1; then
+        # Backward compatibility for state written before the layout was stored.
         old_mods_base_dir="${bin_dir}/ue4ss/Mods"
     fi
 
@@ -242,13 +328,6 @@ if [[ -f "$state_file" ]]; then
             rm -rf "${old_mods_base_dir}/PalSchema/mods/${palschema_mod}"
         fi
     done
-fi
-
-# Re-evaluate mods_base_dir in case UE4SS directories were cleaned up or changed
-if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]] || [[ -d "${bin_dir}/ue4ss" ]]; then
-    mods_base_dir="${bin_dir}/ue4ss/Mods"
-else
-    mods_base_dir="${bin_dir}/Mods"
 fi
 
 # Arrays to keep track of currently deployed files for the new state
@@ -791,12 +870,13 @@ for pmod in "${deployed_palschema_mods[@]}"; do
 done
 
 current_state_json=$(jq -n \
+    --arg ue4ss_mods_layout "$ue4ss_mods_layout" \
     --argjson versions "$versions_json" \
     --argjson paks "$paks_json" \
     --argjson ue4ss "$ue4ss_json" \
     --argjson lmods "$lua_mods_json" \
     --argjson psmods "$palschema_mods_json" \
-    '{versions: $versions, deployed_paks: $paks, deployed_ue4ss_files: $ue4ss, deployed_lua_mods: $lmods, deployed_palschema_mods: $psmods}')
+    '{ue4ss_mods_layout: $ue4ss_mods_layout, versions: $versions, deployed_paks: $paks, deployed_ue4ss_files: $ue4ss, deployed_lua_mods: $lmods, deployed_palschema_mods: $psmods}')
 
 changed=false
 if [[ ! -f "$state_file" ]]; then
