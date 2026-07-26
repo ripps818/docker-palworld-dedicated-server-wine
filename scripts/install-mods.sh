@@ -328,7 +328,31 @@ if [[ -f "$state_file" ]]; then
             rm -rf "${old_mods_base_dir}/PalSchema/mods/${palschema_mod}"
         fi
     done
+
+    # Read old workshop_mappings from state file to clean up removed Workshop raw directories
+    old_workshop_mappings=$(jq -c '.workshop_mappings // {}' "$state_file" 2>/dev/null || echo "{}")
+    if [[ "$old_workshop_mappings" != "{}" ]]; then
+        for old_id in $(echo "$old_workshop_mappings" | jq -r 'keys[]?'); do
+            is_still_active=false
+            for current_id in "${unique_ids[@]}"; do
+                if [[ "$current_id" == "$old_id" ]]; then
+                    is_still_active=true
+                    break
+                fi
+            done
+            if [[ "$is_still_active" == "false" ]]; then
+                old_folder=$(echo "$old_workshop_mappings" | jq -r --arg id "$old_id" '.[$id] // empty')
+                if [[ -n "$old_folder" ]]; then
+                    dbgi "Removing old Workshop raw mod directory: ${old_folder} (ID: ${old_id})"
+                    rm -rf "${GAME_ROOT}/Mods/Workshop/${old_folder}"
+                    rm -rf "${old_mods_base_dir}/Workshop/${old_folder}"
+                    rm -rf "${GAME_ROOT}/Mods/Workshop/${old_id}"
+                fi
+            fi
+        done
+    fi
 fi
+
 
 # Arrays to keep track of currently deployed files for the new state
 deployed_paks=()
@@ -622,9 +646,12 @@ deploy_mod() {
     fi
 }
 
-# 4. Deploy Workshop mods into Mods/Workshop/
-workshop_dir="${mods_base_dir}/Workshop"
-mkdir -p "$workshop_dir"
+# 4. Deploy Workshop mods into /palworld/Mods/Workshop/
+workshop_dir="${GAME_ROOT}/Mods/Workshop"
+mkdir -p "$workshop_dir" 2>/dev/null || true
+chown steam:steam "$workshop_dir" 2>/dev/null || true
+
+declare -A workshop_folder_mappings
 
 for id in "${unique_ids[@]}"; do
     dbgi "Processing Workshop Mod ID: $id"
@@ -640,15 +667,20 @@ for id in "${unique_ids[@]}"; do
         dbgi "  Checking path: $src_dir"
     fi
     
-    dest_dir="${workshop_dir}/${id}"
-    dbgi "  Destination path: $dest_dir"
-    
     if [[ -d "$src_dir" ]]; then
         pkg_name=$(jq -r '.PackageName // empty' "${src_dir}/Info.json" 2>/dev/null || true)
         if [[ -z "$pkg_name" || "$pkg_name" == "null" ]]; then
+            folder_name="$id"
             pkg_name="$id"
+        else
+            folder_name="$pkg_name"
         fi
-        ei "Deploying Workshop mod $id ($pkg_name)..."
+
+        workshop_folder_mappings["$id"]="$folder_name"
+        dest_dir="${workshop_dir}/${folder_name}"
+        dbgi "  Destination path: $dest_dir"
+
+        ei "Deploying Workshop mod $id ($pkg_name -> ${folder_name})..."
         deploy_mod "$src_dir" "$dest_dir" "$pkg_name"
     else
         ew "Warning: Workshop mod $id was not found at $src_dir. Download might have failed."
@@ -682,7 +714,8 @@ fi
 # 4c. Parse deployed mod's Info.json and rewrite ActiveModList in PalModSettings.ini
 active_packages=()
 for id in "${unique_ids[@]}"; do
-    info_json="${workshop_dir}/${id}/Info.json"
+    folder_name="${workshop_folder_mappings[$id]:-$id}"
+    info_json="${workshop_dir}/${folder_name}/Info.json"
     if [[ -f "$info_json" ]]; then
         pkg_name=$(jq -r '.PackageName // empty' "$info_json" 2>/dev/null || true)
         if [[ -n "$pkg_name" && "$pkg_name" != "null" ]]; then
@@ -829,7 +862,8 @@ state_file="${GAME_ROOT}/.workshop-mods-state.json"
 versions_json=$(jq -n '{}')
 
 for id in "${unique_ids[@]}"; do
-    info_json="${workshop_dir}/${id}/Info.json"
+    folder_name="${workshop_folder_mappings[$id]:-$id}"
+    info_json="${workshop_dir}/${folder_name}/Info.json"
     if [[ -f "$info_json" ]]; then
         version=$(jq -r '.Version // "unknown"' "$info_json" 2>/dev/null || echo "unknown")
         versions_json=$(echo "$versions_json" | jq --arg id "$id" --arg ver "$version" '. + {($id): $ver}')
@@ -869,6 +903,12 @@ for pmod in "${deployed_palschema_mods[@]}"; do
     palschema_mods_json=$(echo "$palschema_mods_json" | jq --arg pmod "$pmod" '. += [$pmod]')
 done
 
+workshop_mappings_json=$(jq -n '{}')
+for id in "${!workshop_folder_mappings[@]}"; do
+    folder="${workshop_folder_mappings[$id]}"
+    workshop_mappings_json=$(echo "$workshop_mappings_json" | jq --arg id "$id" --arg folder "$folder" '. + {($id): $folder}')
+done
+
 current_state_json=$(jq -n \
     --arg ue4ss_mods_layout "$ue4ss_mods_layout" \
     --argjson versions "$versions_json" \
@@ -876,7 +916,8 @@ current_state_json=$(jq -n \
     --argjson ue4ss "$ue4ss_json" \
     --argjson lmods "$lua_mods_json" \
     --argjson psmods "$palschema_mods_json" \
-    '{ue4ss_mods_layout: $ue4ss_mods_layout, versions: $versions, deployed_paks: $paks, deployed_ue4ss_files: $ue4ss, deployed_lua_mods: $lmods, deployed_palschema_mods: $psmods}')
+    --argjson wmappings "$workshop_mappings_json" \
+    '{ue4ss_mods_layout: $ue4ss_mods_layout, versions: $versions, deployed_paks: $paks, deployed_ue4ss_files: $ue4ss, deployed_lua_mods: $lmods, deployed_palschema_mods: $psmods, workshop_mappings: $wmappings}')
 
 changed=false
 if [[ ! -f "$state_file" ]]; then
