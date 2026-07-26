@@ -372,11 +372,11 @@ deploy_mod_auto_discover() {
         chown steam:steam "${bin_dir}/dwmapi.dll" 2>/dev/null || true
         deployed_ue4ss_files+=("dwmapi.dll")
     elif [[ -f "${dest_dir}/UE4SS.dll" ]]; then
-        ei "  Found UE4SS.dll. Deploying and copying to dwmapi.dll..."
+        ei "  Found UE4SS.dll. Deploying as dwmapi.dll..."
         cp -f "${dest_dir}/UE4SS.dll" "${bin_dir}/dwmapi.dll"
-        cp -f "${dest_dir}/UE4SS.dll" "${bin_dir}/UE4SS.dll"
-        chown steam:steam "${bin_dir}/dwmapi.dll" "${bin_dir}/UE4SS.dll" 2>/dev/null || true
-        deployed_ue4ss_files+=("dwmapi.dll" "UE4SS.dll")
+        rm -f "${bin_dir}/UE4SS.dll"
+        chown steam:steam "${bin_dir}/dwmapi.dll" 2>/dev/null || true
+        deployed_ue4ss_files+=("dwmapi.dll")
     fi
 
     # Check for other dlls or settings
@@ -563,9 +563,9 @@ deploy_mod_via_rules() {
                             deployed_ue4ss_files+=("dwmapi.dll")
                         elif [[ -f "${target_path}/UE4SS.dll" ]]; then
                             cp -f "${target_path}/UE4SS.dll" "${bin_dir}/dwmapi.dll"
-                            cp -f "${target_path}/UE4SS.dll" "${bin_dir}/UE4SS.dll"
-                            chown steam:steam "${bin_dir}/dwmapi.dll" "${bin_dir}/UE4SS.dll" 2>/dev/null || true
-                            deployed_ue4ss_files+=("dwmapi.dll" "UE4SS.dll")
+                            rm -f "${bin_dir}/UE4SS.dll"
+                            chown steam:steam "${bin_dir}/dwmapi.dll" 2>/dev/null || true
+                            deployed_ue4ss_files+=("dwmapi.dll")
                         fi
                         for file in "UE4SS-settings.ini" "Vindsent.dll" "MemberVariableLayout.ini"; do
                             if [[ -f "${target_path}/${file}" ]]; then
