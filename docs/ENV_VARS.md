@@ -73,7 +73,9 @@ The container can automatically download, deploy, and update Steam Workshop mods
 - **`STEAM_USERNAME` / `STEAM_PASSWORD`**: Steam credentials used for downloading workshop items. Since Palworld (AppID 1623730) is a paid game, SteamCMD requires an authenticated login (not `anonymous`) with an account that owns the game.
 - **`workshop-mods.txt`**: As a file-based alternative, you can create a file named `workshop-mods.txt` in the root of the game volume (i.e., `/palworld/workshop-mods.txt`). Add one Published File ID per line. Blank lines and lines starting with `#` are ignored. 
 
-If you use both `WORKSHOP_MOD_IDS` and `workshop-mods.txt`, the list of IDs from both sources is merged and deduplicated.
+If you use both `WORKSHOP_MOD_IDS` and `workshop-mods.txt`, the list of IDs from both sources is merged and deduplicated. Downloaded raw Workshop mods are stored under `/palworld/Mods/Workshop/<PackageName>` using human-readable names when available.
+
+Custom mod configuration files placed in `/palworld/Mods/ConfigOverrides/<PackageName_or_ID>/` will automatically overlay onto active deployed mod directories on container startup, keeping your configuration edits persistent across restarts.
 
 ### UE4SS Experimental Framework
 

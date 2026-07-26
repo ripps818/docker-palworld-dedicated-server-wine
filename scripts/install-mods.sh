@@ -360,6 +360,31 @@ deployed_ue4ss_files=()
 deployed_lua_mods=()
 deployed_palschema_mods=()
 
+# Helper function to apply user configuration overrides from /palworld/Mods/ConfigOverrides
+config_overrides_dir="${GAME_ROOT}/Mods/ConfigOverrides"
+mkdir -p "$config_overrides_dir" 2>/dev/null || true
+chown steam:steam "$config_overrides_dir" 2>/dev/null || true
+
+apply_config_overrides() {
+    local pkg_name="$1"
+    local mod_id="${2:-$pkg_name}"
+    local target_dest_dir="$3"
+
+    local override_src=""
+    if [[ -d "${config_overrides_dir}/${pkg_name}" ]]; then
+        override_src="${config_overrides_dir}/${pkg_name}"
+    elif [[ -d "${config_overrides_dir}/${mod_id}" ]]; then
+        override_src="${config_overrides_dir}/${mod_id}"
+    fi
+
+    if [[ -n "$override_src" && -d "$override_src" && -d "$target_dest_dir" ]]; then
+        ei "  Found ConfigOverrides in $(basename "$override_src"). Applying overrides to ${target_dest_dir}..."
+        cp -rf "${override_src}"/. "${target_dest_dir}"/
+        chown -R steam:steam "${target_dest_dir}" 2>/dev/null || true
+        es "  Successfully applied ConfigOverrides for ${pkg_name}"
+    fi
+}
+
 # Function to deploy a mod's files based on its auto-discovered folders/files (legacy fallback)
 deploy_mod_auto_discover() {
     local dest_dir="$1"
@@ -623,8 +648,9 @@ deploy_mod() {
     local src_dir="$1"
     local dest_dir="$2"
     local pkg_name="$3"
+    local mod_id="${4:-$pkg_name}"
     
-    dbgi "deploy_mod: src_dir=$src_dir, dest_dir=$dest_dir, pkg_name=$pkg_name"
+    dbgi "deploy_mod: src_dir=$src_dir, dest_dir=$dest_dir, pkg_name=$pkg_name, mod_id=$mod_id"
     if [[ -d "$src_dir" ]]; then
         dbgi "  Clearing and recreating $dest_dir"
         # Replace existing copy of the raw mod
@@ -641,6 +667,10 @@ deploy_mod() {
             dbgi "  No InstallRule found in Info.json. Deploying via auto-discover..."
             deploy_mod_auto_discover "$dest_dir" "$pkg_name"
         fi
+
+        # Dynamically apply config overrides to deployed destinations if present
+        apply_config_overrides "$pkg_name" "$mod_id" "${mods_base_dir}/${pkg_name}"
+        apply_config_overrides "$pkg_name" "$mod_id" "${mods_base_dir}/PalSchema/mods/${pkg_name}"
     else
         dbgi "  Warning: src_dir $src_dir does not exist."
     fi
@@ -681,7 +711,7 @@ for id in "${unique_ids[@]}"; do
         dbgi "  Destination path: $dest_dir"
 
         ei "Deploying Workshop mod $id ($pkg_name -> ${folder_name})..."
-        deploy_mod "$src_dir" "$dest_dir" "$pkg_name"
+        deploy_mod "$src_dir" "$dest_dir" "$pkg_name" "$id"
     else
         ew "Warning: Workshop mod $id was not found at $src_dir. Download might have failed."
     fi

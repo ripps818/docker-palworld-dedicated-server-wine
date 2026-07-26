@@ -193,6 +193,19 @@ If you have mods not available on the Steam Workshop (e.g. from Nexus Mods) or w
 
 ---
 
+### Persistent Mod Config Overrides (`ConfigOverrides`)
+
+If you edit mod configuration files (`.ini`, `.lua`, `.json`) directly inside the game runtime directory (`Pal/Binaries/Win64/Mods/`), they will be overwritten when mods update or sync on container restart. 
+
+To keep custom mod configurations persistent across restarts and updates:
+
+1. Create a directory named `Mods/ConfigOverrides` in your game volume (e.g., `./game/Mods/ConfigOverrides/`).
+2. Create a folder matching either the mod's `PackageName` or its Steam Workshop ID (e.g., `./game/Mods/ConfigOverrides/MyModName/` or `./game/Mods/ConfigOverrides/3142718104/`).
+3. Place your customized configuration files directly inside that folder.
+4. On container startup, after mods are downloaded or extracted, the container automatically overlays your custom configuration files on top of the deployed runtime destination directory.
+
+---
+
 ### Manual Mod Installation (Legacy / Manual)
 
 If you prefer to copy files manually and configure the files yourself, you can install the UE4SS framework:
