@@ -184,12 +184,17 @@ else
     fi
 fi
 
-# Report whether a package installs UE4SS at the Win64 root or in Win64/ue4ss.
-# Root-level proxy/framework DLLs take precedence over a bundled ue4ss folder.
+# Report whether a package installs UE4SS at the Win64 root or nested under
+# Win64/ue4ss. A nested ue4ss/ folder always wins over a root-level
+# dwmapi.dll/UE4SS.dll in the same candidate: modern packages ship a thin root
+# dwmapi.dll PROXY that forwards into a nested ue4ss/UE4SS.dll, and it's that
+# nested DLL - not the proxy - that actually runs and scans its own Mods
+# folder. Echoes "root", "nested", or nothing if the package has neither (e.g.
+# a plain Lua-only mod with no UE4SS framework files at all).
 detect_ue4ss_layout() {
     local package_dir="$1"
     local candidate
-    local nested_found=false
+    local layout=""
     local candidates=("$package_dir")
     local info_json="${package_dir}/Info.json"
 
@@ -206,18 +211,18 @@ detect_ue4ss_layout() {
     fi
 
     for candidate in "${candidates[@]}"; do
-        if [[ -f "${candidate}/UE4SS.dll" || -f "${candidate}/dwmapi.dll" ]]; then
-            echo "root"
-            return
-        fi
         if [[ -d "${candidate}/ue4ss" ]]; then
-            nested_found=true
+            # Nested is authoritative the moment we see it - no candidate
+            # after this one could change the answer.
+            echo "nested"
+            return
+        elif [[ -f "${candidate}/UE4SS.dll" || -f "${candidate}/dwmapi.dll" ]]; then
+            # Provisional only: a later candidate may still turn out nested.
+            layout="root"
         fi
     done
 
-    if [[ "$nested_found" == "true" ]]; then
-        echo "nested"
-    fi
+    echo "$layout"
 }
 
 # Purge legacy UE4SS files/directories if experimental UE4SS is activated to prevent conflicts
