@@ -91,6 +91,8 @@ if [[ ${#unique_ids[@]} -gt 0 ]]; then
         else
             steamcmd_login=("${STEAM_USERNAME}")
         fi
+    else
+        ew "STEAM_USERNAME is not set. Downloading Palworld (AppID 1623730) Workshop mods with 'anonymous' login may fail. If downloads fail, specify STEAM_USERNAME."
     fi
 
     steamcmd_args=("+login" "${steamcmd_login[@]}")
@@ -109,7 +111,7 @@ if [[ ${#unique_ids[@]} -gt 0 ]]; then
     # Run steamcmd, warn on failure but keep going
     ei "Running steamcmd..."
     if ! steamcmd "${steamcmd_args[@]}"; then
-        ew "steamcmd reported errors during workshop download, will check downloaded directories..."
+        ew "steamcmd reported errors during workshop download. If item downloads failed, verify STEAM_USERNAME and Steam login credentials."
     fi
 fi
 
