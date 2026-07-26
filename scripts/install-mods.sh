@@ -381,6 +381,7 @@ apply_config_overrides() {
         ei "  Found ConfigOverrides in $(basename "$override_src"). Applying overrides to ${target_dest_dir}..."
         cp -rf "${override_src}"/. "${target_dest_dir}"/
         chown -R steam:steam "${target_dest_dir}" 2>/dev/null || true
+        dbgi "  [ConfigOverride] Copied ${override_src}/* -> ${target_dest_dir}/"
         es "  Successfully applied ConfigOverrides for ${pkg_name}"
     fi
 }
@@ -395,14 +396,23 @@ deploy_mod_auto_discover() {
     dbgi "Running deploy_mod_auto_discover on: $dest_dir"
     
     # 4a. Handle Logic Mods (.pak files)
-    local logic_mods_dir="${GAME_ROOT}/Pal/Content/Paks/LogicMods"
-    mkdir -p "$logic_mods_dir"
+    local default_paks_dir="${GAME_ROOT}/Pal/Content/Paks/LogicMods"
+    local tilde_paks_dir="${GAME_ROOT}/Pal/Content/Paks/~mods"
+    mkdir -p "$default_paks_dir" "$tilde_paks_dir"
     while read -r pak_file; do
         if [[ -f "$pak_file" ]]; then
             local pak_name=$(basename "$pak_file")
-            ei "  Found logic mod: $pak_name. Deploying to LogicMods..."
-            cp -f "$pak_file" "$logic_mods_dir/"
-            chown steam:steam "$logic_mods_dir/$pak_name" 2>/dev/null || true
+            local target_paks_dir="$default_paks_dir"
+            
+            # If the pak file is located inside a ~mods folder in the source package, route to ~mods
+            if [[ "$pak_file" == *"~mods"* ]]; then
+                target_paks_dir="$tilde_paks_dir"
+            fi
+            
+            ei "  Found pak mod: $pak_name. Deploying to $(basename "$target_paks_dir")..."
+            cp -f "$pak_file" "$target_paks_dir/"
+            chown steam:steam "$target_paks_dir/$pak_name" 2>/dev/null || true
+            dbgi "  [Pak] Absolute destination: ${target_paks_dir}/${pak_name}"
             deployed_paks+=("$pak_name")
         fi
     done < <(find "$dest_dir" -type f -name "*.pak")
@@ -412,6 +422,7 @@ deploy_mod_auto_discover() {
         ei "  Found ue4ss folder. Deploying..."
         cp -r "${dest_dir}/ue4ss" "${bin_dir}/"
         chown -R steam:steam "${bin_dir}/ue4ss" 2>/dev/null || true
+        dbgi "  [UE4SS] Absolute destination: ${bin_dir}/ue4ss"
         deployed_ue4ss_files+=("ue4ss")
     fi
 
@@ -419,12 +430,14 @@ deploy_mod_auto_discover() {
         ei "  Found dwmapi.dll. Deploying..."
         cp -f "${dest_dir}/dwmapi.dll" "${bin_dir}/"
         chown steam:steam "${bin_dir}/dwmapi.dll" 2>/dev/null || true
+        dbgi "  [DLL] Absolute destination: ${bin_dir}/dwmapi.dll"
         deployed_ue4ss_files+=("dwmapi.dll")
     elif [[ -f "${dest_dir}/UE4SS.dll" ]]; then
         ei "  Found UE4SS.dll. Deploying and copying to dwmapi.dll..."
         cp -f "${dest_dir}/UE4SS.dll" "${bin_dir}/dwmapi.dll"
         cp -f "${dest_dir}/UE4SS.dll" "${bin_dir}/UE4SS.dll"
         chown steam:steam "${bin_dir}/dwmapi.dll" "${bin_dir}/UE4SS.dll" 2>/dev/null || true
+        dbgi "  [DLL] Absolute destination: ${bin_dir}/dwmapi.dll and ${bin_dir}/UE4SS.dll"
         deployed_ue4ss_files+=("dwmapi.dll" "UE4SS.dll")
     fi
 
@@ -434,6 +447,7 @@ deploy_mod_auto_discover() {
             ei "  Found UE4SS file: $file. Deploying..."
             cp -f "${dest_dir}/${file}" "${bin_dir}/"
             chown steam:steam "${bin_dir}/${file}" 2>/dev/null || true
+            dbgi "  [Framework File] Absolute destination: ${bin_dir}/${file}"
             deployed_ue4ss_files+=("$file")
         fi
     done
@@ -443,6 +457,7 @@ deploy_mod_auto_discover() {
         ei "  Found UE4SS Mods folder. Deploying contents to ${mods_base_dir}..."
         cp -r "${dest_dir}/Mods"/. "${mods_base_dir}"/
         chown -R steam:steam "${mods_base_dir}" 2>/dev/null || true
+        dbgi "  [Lua/UE4SS Mods] Absolute destination: ${mods_base_dir}/"
         # Track deployed Lua mod directories or PalSchema mods for state cleanup
         for d in "${dest_dir}/Mods"/*; do
             if [[ -d "$d" ]]; then
