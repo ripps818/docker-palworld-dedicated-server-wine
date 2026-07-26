@@ -115,6 +115,130 @@ if [[ ${#unique_ids[@]} -gt 0 ]]; then
     fi
 fi
 
+# 2.5 Check if PalServer is currently running. If so, perform a non-destructive update check.
+server_executable=$(basename "${GAME_BIN:-PalServer-Win64-Shipping-Cmd.exe}")
+if pgrep -f "$server_executable" > /dev/null; then
+    server_running=true
+else
+    server_running=false
+fi
+
+state_file="${GAME_ROOT}/.workshop-mods-state.json"
+
+if [[ "$server_running" == "true" ]]; then
+    ei "PalServer is currently running. Performing non-destructive check for mod updates..."
+    
+    live_update_detected=false
+    if [[ ! -f "$state_file" ]]; then
+        live_update_detected=true
+    else
+        old_versions=$(jq -c '.versions // {}' "$state_file" 2>/dev/null || echo "{}")
+        for id in "${unique_ids[@]}"; do
+            src_dir=""
+            for workshop_root in \
+                "/home/steam/Steam/steamapps/workshop/content/1623730" \
+                "/home/steam/.steam/steam/steamapps/workshop/content/1623730" \
+                "/home/steam/.local/share/Steam/steamapps/workshop/content/1623730"; do
+                if [[ -d "${workshop_root}/${id}" ]]; then
+                    src_dir="${workshop_root}/${id}"
+                    break
+                fi
+            done
+            
+            old_ver=$(echo "$old_versions" | jq -r --arg id "$id" '.[$id] // empty')
+            new_ver=""
+            new_mtime=""
+            if [[ -n "$src_dir" ]]; then
+                if [[ -f "${src_dir}/Info.json" ]]; then
+                    new_ver=$(jq -r '.Version // "unknown"' "${src_dir}/Info.json" 2>/dev/null || echo "unknown")
+                else
+                    new_ver="missing"
+                fi
+                new_mtime=$(stat -c %Y "$src_dir" 2>/dev/null || echo "0")
+            fi
+            new_composite_ver="${new_ver}_${new_mtime}"
+            
+            if [[ -z "$old_ver" || "$old_ver" != "$new_composite_ver" ]]; then
+                dbgi "Mod ID $id version changed: old='$old_ver', new='$new_composite_ver'"
+                live_update_detected=true
+                break
+            fi
+        done
+        
+        # Check if any configured ID was removed
+        old_ids=$(echo "$old_versions" | jq -r 'keys[]?' 2>/dev/null)
+        for old_id in $old_ids; do
+            is_still_configured=false
+            for id in "${unique_ids[@]}"; do
+                if [[ "$id" == "$old_id" ]]; then
+                    is_still_configured=true
+                    break
+                fi
+            done
+            if [[ "$is_still_configured" == "false" ]]; then
+                dbgi "Mod ID $old_id was removed from configuration."
+                live_update_detected=true
+                break
+            fi
+        done
+    fi
+
+    if [[ "$live_update_detected" == "true" ]]; then
+        ei "Workshop mod updates detected while server is running!"
+        if [[ "${RESTAPI_ENABLED:-false}" == "true" || "${RESTAPI_ENABLED:-false}" == "True" ]]; then
+            ei "REST API is enabled. Preparing graceful shutdown..."
+            countdown=${AUTO_UPDATE_COUNTDOWN:-${RESTART_COUNTDOWN:-15}}
+            announce_enabled=${AUTO_UPDATE_ANNOUNCE_MESSAGES_ENABLED:-${RESTART_ANNOUNCE_MESSAGES_ENABLED:-true}}
+            
+            if [[ "${WEBHOOK_ENABLED:-false}" == "true" ]]; then
+                if [[ -f "/includes/webhook.sh" ]]; then
+                    source /includes/webhook.sh
+                    send_restart_planned_notification || true
+                fi
+            fi
+            
+            for ((counter=$countdown; counter>=1; counter--)); do
+                if check_is_server_empty; then
+                    ew ">>> Server is empty, restarting now"
+                    if [[ "${WEBHOOK_ENABLED:-false}" == "true" ]]; then
+                        send_restart_now_notification 2>/dev/null || true
+                    fi
+                    break
+                else
+                    ew ">>> Server has players. Waiting..."
+                fi
+                if [[ "$announce_enabled" == "true" ]]; then
+                    restapi_announce "MOD UPDATE: Server will restart in $counter minutes for workshop mod updates." || true
+                fi
+                sleep 60
+            done
+            
+            ei "Saving world..."
+            if [[ "$announce_enabled" == "true" ]]; then
+                restapi_announce "MOD UPDATE: Saving world before restart..." || true
+            fi
+            restapi_save || ew "Warning: Failed to save server state via REST API"
+            sleep 5
+            
+            ei "Shutting down server..."
+            restapi_shutdown 10 "Server restarting for mod updates..." || ew "Warning: Failed to shutdown server via REST API"
+            
+            if [[ "${WEBHOOK_ENABLED:-false}" == "true" ]]; then
+                send_stop_notification 2>/dev/null || true
+            fi
+            
+            exit 2
+        else
+            ew ">>> WARNING: Workshop mods have updates, but REST API is disabled."
+            ew ">>> You must manually restart the Palworld server to apply these changes."
+            exit 2
+        fi
+    else
+        ei "No workshop mod updates detected while server is running."
+        exit 0
+    fi
+fi
+
 # Handle Okaetsu's UE4SS Experimental download/update/extraction
 ue4ss_exp_local_zip="${GAME_ROOT}/Mods/ue4ss-experimental.zip"
 ue4ss_exp_temp_zip="${GAME_ROOT}/Mods/ue4ss-experimental.zip.tmp"
@@ -917,23 +1041,28 @@ versions_json=$(jq -n '{}')
 
 for id in "${unique_ids[@]}"; do
     folder_name="${workshop_folder_mappings[$id]:-$id}"
-    info_json="${workshop_dir}/${folder_name}/Info.json"
+    mod_dir="${workshop_dir}/${folder_name}"
+    info_json="${mod_dir}/Info.json"
     if [[ -f "$info_json" ]]; then
         version=$(jq -r '.Version // "unknown"' "$info_json" 2>/dev/null || echo "unknown")
-        versions_json=$(echo "$versions_json" | jq --arg id "$id" --arg ver "$version" '. + {($id): $ver}')
     else
-        versions_json=$(echo "$versions_json" | jq --arg id "$id" '. + {($id): "missing"}')
+        version="missing"
     fi
+    mtime=$(stat -c %Y "$mod_dir" 2>/dev/null || echo "0")
+    composite_ver="${version}_${mtime}"
+    versions_json=$(echo "$versions_json" | jq --arg id "$id" --arg ver "$composite_ver" '. + {($id): $ver}')
 done
 
 for mod_name in "${native_mod_names[@]}"; do
     info_json="${mods_base_dir}/${mod_name}/Info.json"
     if [[ -f "$info_json" ]]; then
         version=$(jq -r '.Version // "unknown"' "$info_json" 2>/dev/null || echo "unknown")
-        versions_json=$(echo "$versions_json" | jq --arg id "native_${mod_name}" --arg ver "$version" '. + {($id): $ver}')
     else
-        versions_json=$(echo "$versions_json" | jq --arg id "native_${mod_name}" '. + {($id): "exists"}')
+        version="exists"
     fi
+    mtime=$(stat -c %Y "${mods_base_dir}/${mod_name}" 2>/dev/null || echo "0")
+    composite_ver="${version}_${mtime}"
+    versions_json=$(echo "$versions_json" | jq --arg id "native_${mod_name}" --arg ver "$composite_ver" '. + {($id): $ver}')
 done
 
 # Convert arrays to JSON arrays safely using jq
@@ -994,74 +1123,5 @@ echo "$current_state_json" | jq . > "$state_file"
 chmod 644 "$state_file"
 chown steam:steam "$state_file" 2>/dev/null || true
 
-# 6. Check if server is running and handle restart
-server_executable=$(basename "${GAME_BIN:-PalServer-Win64-Shipping-Cmd.exe}")
-if pgrep -f "$server_executable" > /dev/null; then
-    server_running=true
-else
-    server_running=false
-fi
-
-if [[ "$changed" == "true" ]]; then
-    ei "Changes in workshop mods detected!"
-    if [[ "$server_running" == "true" ]]; then
-        if [[ "${RESTAPI_ENABLED:-false}" == "true" || "${RESTAPI_ENABLED:-false}" == "True" ]]; then
-            ei "REST API is enabled. Preparing graceful shutdown..."
-            countdown=${AUTO_UPDATE_COUNTDOWN:-${RESTART_COUNTDOWN:-15}}
-            announce_enabled=${AUTO_UPDATE_ANNOUNCE_MESSAGES_ENABLED:-${RESTART_ANNOUNCE_MESSAGES_ENABLED:-true}}
-            
-            # Announce planned restart if webhook enabled
-            if [[ "${WEBHOOK_ENABLED:-false}" == "true" ]]; then
-                if [[ -f "/includes/webhook.sh" ]]; then
-                    source /includes/webhook.sh
-                    send_restart_planned_notification || true
-                fi
-            fi
-            
-            # Countdown
-            for ((counter=$countdown; counter>=1; counter--)); do
-                if check_is_server_empty; then
-                    ew ">>> Server is empty, restarting now"
-                    if [[ "${WEBHOOK_ENABLED:-false}" == "true" ]]; then
-                        send_restart_now_notification 2>/dev/null || true
-                    fi
-                    break
-                else
-                    ew ">>> Server has players. Waiting..."
-                fi
-                if [[ "$announce_enabled" == "true" ]]; then
-                    restapi_announce "MOD UPDATE: Server will restart in $counter minutes for workshop mod updates." || true
-                fi
-                sleep 60
-            done
-            
-            # Save
-            ei "Saving world..."
-            if [[ "$announce_enabled" == "true" ]]; then
-                restapi_announce "MOD UPDATE: Saving world before restart..." || true
-            fi
-            restapi_save || ew "Warning: Failed to save server state via REST API"
-            sleep 5
-            
-            # Shutdown
-            ei "Shutting down server..."
-            restapi_shutdown 10 "Server restarting for mod updates..." || ew "Warning: Failed to shutdown server via REST API"
-            
-            if [[ "${WEBHOOK_ENABLED:-false}" == "true" ]]; then
-                send_stop_notification 2>/dev/null || true
-            fi
-            
-            exit 2
-        else
-            ew ">>> WARNING: Workshop mods have been updated/installed, but REST API is disabled."
-            ew ">>> You must manually restart the Palworld server to apply these changes."
-            exit 2
-        fi
-    else
-        ei "Server is not running. Mods updated, no restart needed."
-        exit 0
-    fi
-else
-    ei "No changes in workshop mods detected."
-    exit 0
-fi
+es "Mod deployment completed successfully."
+exit 0
