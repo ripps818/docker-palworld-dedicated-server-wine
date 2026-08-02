@@ -164,7 +164,33 @@ if [[ "$server_running" == "true" ]]; then
                 break
             fi
         done
-        
+
+        # Check native mods for version changes, measured against the staging
+        # source dir rather than the deployed copy (which gets recreated on
+        # every restart regardless of content, so its mtime isn't stable)
+        native_mods_dir_check="${GAME_ROOT}/Mods/NativeMods"
+        if [[ -d "$native_mods_dir_check" ]]; then
+            for mod_path in "$native_mods_dir_check"/*; do
+                [[ -d "$mod_path" ]] || continue
+                mod_name=$(basename "$mod_path")
+
+                old_ver=$(echo "$old_versions" | jq -r --arg id "native_${mod_name}" '.[$id] // empty')
+                if [[ -f "${mod_path}/Info.json" ]]; then
+                    new_ver=$(jq -r '.Version // "unknown"' "${mod_path}/Info.json" 2>/dev/null || echo "unknown")
+                else
+                    new_ver="exists"
+                fi
+                new_mtime=$(stat -c %Y "$mod_path" 2>/dev/null || echo "0")
+                new_composite_ver="${new_ver}_${new_mtime}"
+
+                if [[ -z "$old_ver" || "$old_ver" != "$new_composite_ver" ]]; then
+                    dbgi "Native mod $mod_name version changed: old='$old_ver', new='$new_composite_ver'"
+                    live_update_detected=true
+                    break
+                fi
+            done
+        fi
+
         # Check if any configured ID was removed
         old_ids=$(echo "$old_versions" | jq -r 'keys[]?' 2>/dev/null)
         while IFS= read -r old_id; do
@@ -1068,13 +1094,13 @@ for id in "${unique_ids[@]}"; do
 done
 
 for mod_name in "${native_mod_names[@]}"; do
-    info_json="${mods_base_dir}/${mod_name}/Info.json"
+    info_json="${native_mods_dir}/${mod_name}/Info.json"
     if [[ -f "$info_json" ]]; then
         version=$(jq -r '.Version // "unknown"' "$info_json" 2>/dev/null || echo "unknown")
     else
         version="exists"
     fi
-    mtime=$(stat -c %Y "${mods_base_dir}/${mod_name}" 2>/dev/null || echo "0")
+    mtime=$(stat -c %Y "${native_mods_dir}/${mod_name}" 2>/dev/null || echo "0")
     composite_ver="${version}_${mtime}"
     versions_json=$(echo "$versions_json" | jq --arg id "native_${mod_name}" --arg ver "$composite_ver" '. + {($id): $ver}')
 done
