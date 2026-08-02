@@ -5,6 +5,25 @@ source /includes/colors.sh
 current_setting=1
 settings_amount=114
 
+function get_admin_password() {
+    local settings_file="${GAME_SETTINGS_FILE:-/palworld/Pal/Saved/Config/WindowsServer/PalWorldSettings.ini}"
+    if [[ -f "$settings_file" ]] && grep -qE 'AdminPassword="[^"]*"' "$settings_file"; then
+        grep -oE 'AdminPassword="[^"]*"' "$settings_file" | head -n1 | cut -d'"' -f2
+    else
+        echo "${ADMIN_PASSWORD:-}"
+    fi
+}
+
+function get_server_password() {
+    local settings_file="${GAME_SETTINGS_FILE:-/palworld/Pal/Saved/Config/WindowsServer/PalWorldSettings.ini}"
+    if [[ -f "$settings_file" ]] && grep -qE 'ServerPassword="[^"]*"' "$settings_file"; then
+        grep -oE 'ServerPassword="[^"]*"' "$settings_file" | head -n1 | cut -d'"' -f2
+    else
+        echo "${SERVER_PASSWORD:-}"
+    fi
+}
+
+
 function setup_engine_ini() {
     pattern1="OnlineSubsystemUtils.IpNetDriver"
     pattern2="^NetServerMaxTickRate=[0-9]*"

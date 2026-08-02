@@ -1,6 +1,7 @@
 # shellcheck disable=SC2148,SC1091
 
 source /includes/colors.sh
+source /includes/config.sh
 
 # ---------------------------------------------------------------------------
 # Primitives — HTTP transport layer
@@ -12,11 +13,12 @@ source /includes/colors.sh
 # Returns 0 on HTTP 2xx, non-zero on failure.
 restapi_get() {
     local endpoint=$1
-    local response http_code body
+    local response http_code body admin_password
+    admin_password=$(get_admin_password)
 
     response=$(curl -s \
         --max-time "${RESTAPI_TIMEOUT:-10}" \
-        -u "admin:${ADMIN_PASSWORD}" \
+        -u "admin:${admin_password}" \
         -H "Accept: application/json" \
         -X GET \
         -w "\n%{http_code}" \
@@ -39,8 +41,9 @@ restapi_get() {
 restapi_post() {
     local endpoint=$1
     local json_body=${2:-}
-    local http_code
-    local curl_args=(-s --max-time "${RESTAPI_TIMEOUT:-10}" -u "admin:${ADMIN_PASSWORD}" -X POST -o /dev/null -w "%{http_code}")
+    local http_code admin_password
+    admin_password=$(get_admin_password)
+    local curl_args=(-s --max-time "${RESTAPI_TIMEOUT:-10}" -u "admin:${admin_password}" -X POST -o /dev/null -w "%{http_code}")
 
     if [[ -n "$json_body" ]]; then
         curl_args+=(-H "Content-Type: application/json" --data-raw "$json_body")
