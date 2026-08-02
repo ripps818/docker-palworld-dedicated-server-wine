@@ -1,14 +1,19 @@
 # shellcheck disable=SC2148,SC1091
 
 source /includes/colors.sh
+source /includes/config.sh
 
 function check_for_default_credentials() {
     e "> Checking for existence of default credentials"
-    if [[ -n $ADMIN_PASSWORD ]] && [[ $ADMIN_PASSWORD == "adminPasswordHere" ]]; then
+    local admin_pw server_pw
+    admin_pw=$(get_admin_password)
+    server_pw=$(get_server_password)
+
+    if [[ -n "$admin_pw" ]] && [[ "$admin_pw" == "adminPasswordHere" ]]; then
         ee ">>> Security threat detected: Please change the default admin password. Aborting server start ..."
         exit 1
     fi
-    if [[ -n $SERVER_PASSWORD ]] && [[ $SERVER_PASSWORD == "serverPasswordHere" ]]; then
+    if [[ -n "$server_pw" ]] && [[ "$server_pw" == "serverPasswordHere" ]]; then
         ee ">>> Security threat detected: Please change the default server password. Aborting server start ..."
         exit 1
     fi
