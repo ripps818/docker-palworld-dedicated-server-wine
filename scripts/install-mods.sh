@@ -168,6 +168,10 @@ if [[ "$server_running" == "true" ]]; then
         # Check if any configured ID was removed
         old_ids=$(echo "$old_versions" | jq -r 'keys[]?' 2>/dev/null)
         for old_id in $old_ids; do
+            # native_* keys aren't Workshop IDs, skip them
+            if [[ "$old_id" == native_* ]]; then
+                continue
+            fi
             is_still_configured=false
             for id in "${unique_ids[@]}"; do
                 if [[ "$id" == "$old_id" ]]; then
