@@ -167,7 +167,8 @@ if [[ "$server_running" == "true" ]]; then
         
         # Check if any configured ID was removed
         old_ids=$(echo "$old_versions" | jq -r 'keys[]?' 2>/dev/null)
-        for old_id in $old_ids; do
+        while IFS= read -r old_id; do
+            [[ -z "$old_id" ]] && continue
             # native_* keys aren't Workshop IDs, skip them
             if [[ "$old_id" == native_* ]]; then
                 continue
@@ -184,7 +185,7 @@ if [[ "$server_running" == "true" ]]; then
                 live_update_detected=true
                 break
             fi
-        done
+        done <<< "$old_ids"
     fi
 
     if [[ "$live_update_detected" == "true" ]]; then
