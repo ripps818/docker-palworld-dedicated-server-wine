@@ -641,15 +641,19 @@ deploy_mod_auto_discover() {
             deployed_palschema_mods+=("$pkg_name")
         fi
     elif [[ -d "${dest_dir}/mods" ]]; then
-        ei "  Found PalSchema mods directory (lowercase mods). Deploying..."
-        mkdir -p "${mods_base_dir}/PalSchema/mods"
-        cp -r "${dest_dir}/mods"/. "${mods_base_dir}/PalSchema/mods"/
-        chown -R steam:steam "${mods_base_dir}/PalSchema/mods" 2>/dev/null || true
-        for d in "${dest_dir}/mods"/*; do
-            if [[ -d "$d" ]]; then
-                deployed_palschema_mods+=($(basename "$d"))
-            fi
-        done
+        if [[ "${dest_dir}/mods" -ef "${mods_base_dir}/PalSchema/mods" ]]; then
+            dbgi "  PalSchema mods directory is already in place, skipping."
+        else
+            ei "  Found PalSchema mods directory (lowercase mods). Deploying..."
+            mkdir -p "${mods_base_dir}/PalSchema/mods"
+            cp -r "${dest_dir}/mods"/. "${mods_base_dir}/PalSchema/mods"/
+            chown -R steam:steam "${mods_base_dir}/PalSchema/mods" 2>/dev/null || true
+            for d in "${dest_dir}/mods"/*; do
+                if [[ -d "$d" ]]; then
+                    deployed_palschema_mods+=($(basename "$d"))
+                fi
+            done
+        fi
     fi
 
     # 4d. Handle flat PalSchema mods (contains blueprints, raw, translations, or items folder at root)
