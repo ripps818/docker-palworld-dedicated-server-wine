@@ -85,6 +85,10 @@ function start_server() {
         e "> Setting -nosteam to enabled"
         START_OPTIONS+=("-nosteam")
     fi
+    if [[ -n $GAMEDATA_API_ENABLED ]] && [[ "${GAMEDATA_API_ENABLED,,}" == "true" ]]; then
+        e "> Setting Game-Data-API to enabled"
+        START_OPTIONS+=("-enable-gamedata-api")
+    fi
     if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
         send_start_notification
     fi
@@ -208,7 +212,7 @@ function update_server() {
     if [[ -n $STEAMCMD_VALIDATE_FILES ]] && [[ "${STEAMCMD_VALIDATE_FILES,,}" == "true" ]]; then
         ei ">>> Doing an update with validation of the gameserver files..."
         if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
-            send_update_notification
+            send_update_validation_notification
         fi
         run_steamcmd +force_install_dir "${GAME_ROOT}" +login anonymous +app_update 2394010 validate +quit
         es ">>> Done updating and validating the gameserver files"
