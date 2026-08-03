@@ -3,7 +3,7 @@
 source /includes/colors.sh
 
 current_setting=1
-settings_amount=114
+settings_amount=0
 
 function get_admin_password() {
     local settings_file="${GAME_SETTINGS_FILE:-/palworld/Pal/Saved/Config/WindowsServer/PalWorldSettings.ini}"
@@ -57,10 +57,20 @@ function setup_engine_ini() {
 
 function e_with_counter() {
     local padded_number
-    padded_number=$(printf "%02d" $current_setting)
+    padded_number=$(printf "%03d" $current_setting)
     # shellcheck disable=SC2148
     e "> ($padded_number/$settings_amount) Setting $@"
     current_setting=$((current_setting + 1))
+}
+
+function log_settings_with_counter() {
+    local selector varname
+    current_setting=1
+    settings_amount=$(wc -w <<< "${ENVSUBST_SELECTORS}")
+    for selector in ${ENVSUBST_SELECTORS}; do
+        varname="${selector#\$}"
+        e_with_counter "${varname} to '${!varname}'"
+    done
 }
 
 function setup_palworld_settings_ini() {
@@ -128,6 +138,8 @@ function setup_palworld_settings_ini() {
         $AUTO_TRANSFER_MASTER_THRESHOLD_DAYS $MAX_GUILDS_PER_FRAME 
         $ENABLE_BUILDING_PLAYER_UID_DISPLAY $BUILDING_NAME_DISPLAY_CACHE_TTL_SECONDS'
     
+
+    log_settings_with_counter
 
     if ! envsubst "$ENVSUBST_SELECTORS" < "${PALWORLD_TEMPLATE_FILE}" > "${GAME_SETTINGS_FILE}"; then
         ee "Failed to generate ${GAME_SETTINGS_FILE}"
