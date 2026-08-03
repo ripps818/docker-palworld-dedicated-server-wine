@@ -135,6 +135,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     RESTAPI_ENABLED=true \
     RESTAPI_PORT=8212 \
     RESTAPI_TIMEOUT=10 \
+    GAMEDATA_API_ENABLED=false \
     REGION= \
     USEAUTH=true \
     BAN_LIST_URL=https://api.palworldgame.com/api/banlist.txt \
