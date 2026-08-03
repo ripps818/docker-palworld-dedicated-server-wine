@@ -91,7 +91,10 @@ function start_server() {
     check_and_run_custom_script
 
     es ">>> Starting the gameserver"
-    "${WINE_BIN}" "${GAME_BIN}" "${START_OPTIONS[@]}"
+    # Real pty (via script) so Wine's WriteConsoleW transcodes instead of emitting raw UTF-16LE
+    local wine_cmd
+    wine_cmd="exec $(printf '%q ' "${WINE_BIN}" "${GAME_BIN}" "${START_OPTIONS[@]}")"
+    script -qec "${wine_cmd}" /dev/null
 }
 
 function stop_server() {
