@@ -313,6 +313,12 @@ $ docker exec palworld-wine-server restapicli shutdown 60 "Server restarting soo
 
 ## Backup Manager
 
+> [!NOTE]
+> **Container Backup (`BACKUP_ENABLED`) vs. Native World Backup (`ENABLE_WORLD_BACKUP`)**:
+> - **Container Backup Manager (`BACKUP_ENABLED=true`)**: The recommended backup system provided by this Docker image. It runs on a cron schedule (`BACKUP_CRON_EXPRESSION`), triggers a world save via the REST API, compresses save files into `.tar.gz` archives in `/palworld/backups`, and enforces automated retention cleanup (`BACKUP_RETENTION_AMOUNT_TO_KEEP`).
+> - **Native World Backup (`ENABLE_WORLD_BACKUP=false`)**: The Palworld server's built-in backup setting (`bIsUseBackupSaveData`). It creates uncompressed backup save folders inside the save game directory without cron scheduling or automatic cleanup.
+> - **Using Both**: Both backup methods can be used together if desired. However, Native World Backup is disabled by default (`ENABLE_WORLD_BACKUP=false`) to keep disk usage lower and avoid unnecessary duplication.
+
 > [!WARNING]
 > If `RESTAPI_ENABLED` is set to `false`, the backup manager will not announce backup start/success/failure in-game and will not trigger a world save before creating a backup.
 > This means that the backup will be created from the last auto-save of the server.
