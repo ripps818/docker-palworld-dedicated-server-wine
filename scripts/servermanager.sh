@@ -77,10 +77,18 @@ do
     fi
 
     ew "> Server main thread started with pid ${START_MAIN_PID}"
-    wait ${START_MAIN_PID}
+    wait ${START_MAIN_PID} || true
+
+    if [[ -n "${PLAYER_DETECTION_PID}" ]]; then
+        kill -SIGTERM "${PLAYER_DETECTION_PID}" 2>/dev/null || true
+        PLAYER_DETECTION_PID=""
+        rm -f "${GAME_ROOT}/PLAYER_DETECTION.PID"
+    fi
 
     if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
         send_stop_notification
     fi
-    exit 0;
+
+    ew ">>> Server process stopped. Restarting server manager in 5 seconds..."
+    sleep 5
 done

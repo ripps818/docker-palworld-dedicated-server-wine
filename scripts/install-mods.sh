@@ -258,11 +258,11 @@ if [[ "$server_running" == "true" ]]; then
                 send_stop_notification 2>/dev/null || true
             fi
             
-            exit 2
+            exit 0
         else
             ew ">>> WARNING: Workshop mods have updates, but REST API is disabled."
             ew ">>> You must manually restart the Palworld server to apply these changes."
-            exit 2
+            exit 0
         fi
     else
         ei "No workshop mod updates detected while server is running."
