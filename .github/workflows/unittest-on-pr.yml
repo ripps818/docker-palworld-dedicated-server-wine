@@ -7,6 +7,10 @@ on:
         description: 'PR number to test (optional, leave empty to test current branch/PR)'
         required: false
         default: ''
+      test_workshop_mod_id:
+        description: 'Steam Workshop Mod ID to test download/install (optional, e.g. 3767620647)'
+        required: false
+        default: ''
   pull_request: # Run tests on all pull requests, except those only touching CI/config files
     paths-ignore:
       - '.github/**'
@@ -75,6 +79,7 @@ jobs:
           docker run --rm \
             -e INSTALL_UE4SS_EXPERIMENTAL=true \
             -e WORKSHOP_MODS_DEBUG=true \
+            -e WORKSHOP_MOD_IDS="${{ inputs.test_workshop_mod_id }}" \
             -v "$(pwd)/game:/palworld" \
             ${{ github.run_id }} \
             /scripts/install-mods.sh
@@ -148,6 +153,7 @@ jobs:
           -e SERVER_SETTINGS_MODE=auto \
           -e INSTALL_UE4SS_EXPERIMENTAL=true \
           -e WORKSHOP_MODS_DEBUG=true \
+          -e WORKSHOP_MOD_IDS="${{ inputs.test_workshop_mod_id }}" \
           -v ./game:/palworld/ \
           --restart unless-stopped \
           --stop-timeout 30 \
