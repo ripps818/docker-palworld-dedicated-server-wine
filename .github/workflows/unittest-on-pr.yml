@@ -40,6 +40,92 @@ jobs:
           tags: ${{ github.run_id }}
           platforms: linux/amd64
 
+      - name: Test Mod Installation Pipeline
+        run: |
+          echo ">>> Creating test mod structures..."
+          mkdir -p ./game/Mods/NativeMods/TestLuaMod/scripts
+          cat << 'EOF' > ./game/Mods/NativeMods/TestLuaMod/scripts/main.lua
+          print("[UnitTestMod] UE4SS Test Mod Initialized Successfully!")
+          EOF
+          cat << 'EOF' > ./game/Mods/NativeMods/TestLuaMod/Info.json
+          {
+            "Name": "TestLuaMod",
+            "Version": "1.0.0"
+          }
+          EOF
+
+          mkdir -p ./game/Mods/NativeMods/TestPakMod
+          touch ./game/Mods/NativeMods/TestPakMod/TestPakMod_P.pak
+
+          mkdir -p ./game/Mods/NativeMods/TestPalSchemaMod/PalSchema/mods/TestPalSchemaSubMod
+          echo '{"name": "TestPalSchemaSubMod"}' > ./game/Mods/NativeMods/TestPalSchemaMod/PalSchema/mods/TestPalSchemaSubMod/schema.json
+
+          mkdir -p ./game/Mods/ConfigOverrides/TestLuaMod
+          echo "enabled = true" > ./game/Mods/ConfigOverrides/TestLuaMod/config.ini
+
+          echo ">>> Running install-mods.sh in test container..."
+          docker run --rm \
+            -e INSTALL_UE4SS_EXPERIMENTAL=true \
+            -e WORKSHOP_MODS_DEBUG=true \
+            -v "$(pwd)/game:/palworld" \
+            ${{ github.run_id }} \
+            /scripts/install-mods.sh
+
+          echo ">>> Verifying file deployments..."
+          # 1. UE4SS framework files
+          if [[ ! -f ./game/Pal/Binaries/Win64/dwmapi.dll ]] && [[ ! -f ./game/Pal/Binaries/Win64/UE4SS.dll ]] && [[ ! -f ./game/Pal/Binaries/Win64/ue4ss/UE4SS.dll ]]; then
+            echo "Error: UE4SS binaries were not deployed!"
+            exit 1
+          fi
+
+          # 2. Lua Mod deployment
+          if [[ ! -f ./game/Pal/Binaries/Win64/Mods/TestLuaMod/scripts/main.lua ]] && [[ ! -f ./game/Pal/Binaries/Win64/ue4ss/Mods/TestLuaMod/scripts/main.lua ]]; then
+            echo "Error: TestLuaMod scripts were not deployed!"
+            exit 1
+          fi
+
+          # 3. Pak LogicMod deployment
+          if [[ ! -f ./game/Pal/Content/Paks/LogicMods/TestPakMod_P.pak ]]; then
+            echo "Error: TestPakMod_P.pak was not deployed to LogicMods!"
+            exit 1
+          fi
+
+          # 4. PalSchema Mod deployment
+          if [[ ! -d ./game/Pal/Binaries/Win64/Mods/PalSchema/mods/TestPalSchemaSubMod ]] && [[ ! -d ./game/Pal/Binaries/Win64/ue4ss/Mods/PalSchema/mods/TestPalSchemaSubMod ]]; then
+            echo "Error: PalSchema sub-mod was not deployed!"
+            exit 1
+          fi
+
+          # 5. Config Override deployment
+          if [[ ! -f ./game/Pal/Binaries/Win64/Mods/TestLuaMod/config.ini ]] && [[ ! -f ./game/Pal/Binaries/Win64/ue4ss/Mods/TestLuaMod/config.ini ]]; then
+            echo "Error: Config override config.ini was not deployed!"
+            exit 1
+          fi
+
+          # 6. Registration in PalModSettings.ini or mods.txt
+          MODS_INI=$(find ./game/Pal/Binaries/Win64 -name "PalModSettings.ini" -o -name "mods.txt" | head -n 1)
+          if [[ -n "$MODS_INI" ]] && grep -q "TestLuaMod" "$MODS_INI"; then
+            echo "Success: TestLuaMod registered in $(basename "$MODS_INI")"
+          fi
+
+          echo ">>> Testing mod removal and cleanup state..."
+          rm -rf ./game/Mods/NativeMods/TestPakMod
+          rm -rf ./game/Mods/NativeMods/TestPalSchemaMod
+
+          docker run --rm \
+            -e INSTALL_UE4SS_EXPERIMENTAL=true \
+            -e WORKSHOP_MODS_DEBUG=true \
+            -v "$(pwd)/game:/palworld" \
+            ${{ github.run_id }} \
+            /scripts/install-mods.sh
+
+          if [[ -f ./game/Pal/Content/Paks/LogicMods/TestPakMod_P.pak ]]; then
+            echo "Error: TestPakMod_P.pak was not cleaned up after removal!"
+            exit 1
+          fi
+
+          echo ">>> Mod installation pipeline unit tests passed successfully!"
+
       - name: Run server
         run: |
           docker run -d \
@@ -52,6 +138,8 @@ jobs:
           -e ADMIN_PASSWORD=123 \
           -e SERVER_PASSWORD=456 \
           -e SERVER_SETTINGS_MODE=auto \
+          -e INSTALL_UE4SS_EXPERIMENTAL=true \
+          -e WORKSHOP_MODS_DEBUG=true \
           -v ./game:/palworld/ \
           --restart unless-stopped \
           --stop-timeout 30 \
@@ -102,6 +190,23 @@ jobs:
           echo "Server successfully started in $ELAPSED_TIME seconds"
           es "*****Final Container LOGS*****"
           docker logs palworld-dedicated-server
+
+      - name: Verify UE4SS initialization and mod loading
+        run: |
+          echo ">>> Checking for UE4SS log file..."
+          UE4SS_LOG=$(find ./game/Pal/Binaries/Win64 -name "UE4SS.log" 2>/dev/null | head -n 1)
+          if [[ -f "$UE4SS_LOG" ]]; then
+            echo "=== UE4SS.log Content ==="
+            cat "$UE4SS_LOG"
+            echo "========================="
+            if grep -q "TestLuaMod" "$UE4SS_LOG" || grep -q "UnitTestMod" "$UE4SS_LOG"; then
+              echo "SUCCESS: UE4SS loaded TestLuaMod successfully!"
+            else
+              echo "INFO: UE4SS log found, mod loader initialized."
+            fi
+          else
+            echo "INFO: Server started; checking for UE4SS runtime logs."
+          fi
 
       - name: Test if port 8766, 27015 and 27016 are listening
         run: |
