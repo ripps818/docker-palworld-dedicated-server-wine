@@ -2,6 +2,11 @@
 name: unit-test-component-run-on-pr
 on:
   workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to test (optional, leave empty to test current branch/PR)'
+        required: false
+        default: ''
   pull_request: # Run tests on all pull requests, except those only touching CI/config files
     paths-ignore:
       - '.github/**'
@@ -29,6 +34,8 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.pr_number != '' && format('refs/pull/{0}/merge', inputs.pr_number) || github.ref }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
