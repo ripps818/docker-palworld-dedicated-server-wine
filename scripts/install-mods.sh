@@ -747,13 +747,34 @@ deploy_mod_via_rules() {
                     local dest="${mods_base_dir}/${pkg_name}"
                     ei "    [Lua] Copying $target to $dest..."
                     mkdir -p "$dest"
+                    # Normalize target path by removing trailing slash (e.g., "Scripts/" -> "Scripts")
+                    local norm_target="${clean_target%/}"
+                    
                     if [[ -d "$target_path" ]]; then
-                        if [[ "$clean_target" == "Scripts" ]]; then
-                            target_path="$dest_dir"
+                        # If target points to package root (e.g. "." or "./"), copy root contents directly into $dest
+                        if [[ "$target_path" -ef "$dest_dir" || -z "$norm_target" || "$norm_target" == "." ]]; then
+                            cp -r "$target_path"/. "$dest"/
+                        else
+                            # If target points to a sub-folder (e.g. "Scripts" or "sub/folder"), preserve relative path structure in $dest
+                            local parent_dir=$(dirname "$norm_target")
+                            if [[ "$parent_dir" == "." ]]; then
+                                # Top-level subfolder (e.g. "Scripts"): copy folder into $dest so $dest/Scripts/ is created
+                                cp -r "$target_path" "$dest/"
+                            else
+                                # Nested subfolder (e.g. "foo/bar"): recreate parent dir structure in $dest first
+                                mkdir -p "${dest}/${parent_dir}"
+                                cp -r "$target_path" "${dest}/${parent_dir}/"
+                            fi
                         fi
-                        cp -r "$target_path"/. "$dest"/
                     else
-                        cp -f "$target_path" "$dest"/
+                        # If target points to a specific file, copy it preserving parent directory structure
+                        local parent_dir=$(dirname "$norm_target")
+                        if [[ "$parent_dir" == "." ]]; then
+                            cp -f "$target_path" "$dest/"
+                        else
+                            mkdir -p "${dest}/${parent_dir}"
+                            cp -f "$target_path" "${dest}/${parent_dir}/"
+                        fi
                     fi
                     chown -R steam:steam "$dest" 2>/dev/null || true
                     dbgi "    [Lua Rule] Absolute destination: ${dest}"
