@@ -1157,6 +1157,21 @@ else
     fi
 fi
 
+if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
+    dbgi "=================================================="
+    dbgi "   DEBUG: Post-Deployment Directory Inspection"
+    dbgi "=================================================="
+    dbgi "--> Raw Workshop Staging (${workshop_dir}):"
+    ls -laR "$workshop_dir" 2>/dev/null || true
+    dbgi "--> UE4SS Mods Directory (${mods_base_dir}):"
+    ls -laR "$mods_base_dir" 2>/dev/null || true
+    dbgi "--> ~mods Directory (${GAME_ROOT}/Pal/Content/Paks/~mods):"
+    ls -laR "${GAME_ROOT}/Pal/Content/Paks/~mods" 2>/dev/null || true
+    dbgi "--> LogicMods Directory (${GAME_ROOT}/Pal/Content/Paks/LogicMods):"
+    ls -laR "${GAME_ROOT}/Pal/Content/Paks/LogicMods" 2>/dev/null || true
+    dbgi "=================================================="
+fi
+
 # Save the new state
 dbgi "Saving current state: $current_state_json"
 echo "$current_state_json" | jq . > "$state_file"
