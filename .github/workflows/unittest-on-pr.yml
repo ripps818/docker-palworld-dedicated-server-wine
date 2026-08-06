@@ -1,6 +1,7 @@
 ---
 name: unit-test-component-run-on-pr
 on:
+  workflow_dispatch:
   pull_request: # Run tests on all pull requests, except those only touching CI/config files
     paths-ignore:
       - '.github/**'
