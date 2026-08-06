@@ -736,7 +736,7 @@ deploy_mod_via_rules() {
             local target_path="${dest_dir}/${clean_target}"
             
             # If target_path is just "." or empty, it refers to the dest_dir itself
-            if [[ "$clean_target" == "." || -z "$clean_target" ]]; then
+            if [[ "$clean_target" == "." || "$clean_target" == "Scripts" || -z "$clean_target" ]]; then
                 target_path="$dest_dir"
             fi
             
