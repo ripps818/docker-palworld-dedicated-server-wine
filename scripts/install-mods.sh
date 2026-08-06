@@ -577,7 +577,7 @@ deploy_mod_auto_discover() {
             dbgi "  [Pak] Absolute destination: ${target_paks_dir}/${pak_name}"
             deployed_paks+=("$pak_name")
         fi
-    done < <(find "$dest_dir" -type f -name "*.pak")
+    done < <(find "$dest_dir" -type f -iname "*.pak")
 
     # 4b. Handle UE4SS framework files (dwmapi.dll, UE4SS.dll, UE4SS-settings.ini)
     if [[ -d "${dest_dir}/ue4ss" ]]; then
@@ -736,7 +736,7 @@ deploy_mod_via_rules() {
             local target_path="${dest_dir}/${clean_target}"
             
             # If target_path is just "." or empty, it refers to the dest_dir itself
-            if [[ "$clean_target" == "." || "$clean_target" == "Scripts" || -z "$clean_target" ]]; then
+            if [[ "$clean_target" == "." || -z "$clean_target" ]]; then
                 target_path="$dest_dir"
             fi
             
@@ -748,6 +748,9 @@ deploy_mod_via_rules() {
                     ei "    [Lua] Copying $target to $dest..."
                     mkdir -p "$dest"
                     if [[ -d "$target_path" ]]; then
+                        if [[ "$clean_target" == "Scripts" ]]; then
+                            target_path="$dest_dir"
+                        fi
                         cp -r "$target_path"/. "$dest"/
                     else
                         cp -f "$target_path" "$dest"/
@@ -756,17 +759,29 @@ deploy_mod_via_rules() {
                     dbgi "    [Lua Rule] Absolute destination: ${dest}"
                     deployed_lua_mods+=("$pkg_name")
                 elif [[ "$type" == "Paks" ]]; then
+                    local mods_dir="${GAME_ROOT}/Pal/Content/Paks/~mods"
+                    ei "    [Paks] Copying .pak files from $target to ~mods..."
+                    mkdir -p "$mods_dir"
+                    # Find and copy all .pak files in the target directory
+                    while read -r pak_file; do
+                        local pak_name=$(basename "$pak_file")
+                        cp -f "$pak_file" "$mods_dir/"
+                        chown steam:steam "$mods_dir/$pak_name" 2>/dev/null || true
+                        dbgi "    [Pak Rule] Absolute destination: ${mods_dir}/${pak_name}"
+                        deployed_paks+=("$pak_name")
+                    done < <(find "$target_path" -type f -iname "*.pak")
+                elif [[ "$type" == "LogicMods" ]]; then
                     local logic_mods_dir="${GAME_ROOT}/Pal/Content/Paks/LogicMods"
-                    ei "    [Paks] Copying .pak files from $target to LogicMods..."
+                    ei "    [LogicMods] Copying .pak files from $target to LogicMods..."
                     mkdir -p "$logic_mods_dir"
                     # Find and copy all .pak files in the target directory
                     while read -r pak_file; do
                         local pak_name=$(basename "$pak_file")
                         cp -f "$pak_file" "$logic_mods_dir/"
                         chown steam:steam "$logic_mods_dir/$pak_name" 2>/dev/null || true
-                        dbgi "    [Pak Rule] Absolute destination: ${logic_mods_dir}/${pak_name}"
+                        dbgi "    [LogicMods Rule] Absolute destination: ${logic_mods_dir}/${pak_name}"
                         deployed_paks+=("$pak_name")
-                    done < <(find "$target_path" -type f -name "*.pak")
+                    done < <(find "$target_path" -type f -iname "*.pak")
                 elif [[ "$type" == "PalSchema" ]]; then
                     local dest="${mods_base_dir}/PalSchema/mods/${pkg_name}"
                     ei "    [PalSchema] Deploying files from $target to $dest..."
