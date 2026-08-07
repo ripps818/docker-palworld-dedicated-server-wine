@@ -122,12 +122,13 @@ jobs:
           fi
 
           echo ">>> Testing mod removal and cleanup state..."
-          rm -rf ./game/Mods/NativeMods/TestPakMod
-          rm -rf ./game/Mods/NativeMods/TestPalSchemaMod
+          sudo rm -rf ./game/Mods/NativeMods/TestPakMod
+          sudo rm -rf ./game/Mods/NativeMods/TestPalSchemaMod
 
           docker run --rm \
             -e INSTALL_UE4SS_EXPERIMENTAL=true \
             -e WORKSHOP_MODS_DEBUG=true \
+            -e WORKSHOP_MOD_IDS="${{ inputs.test_workshop_mod_id }}" \
             -v "$(pwd)/game:/palworld" \
             ${{ github.run_id }} \
             /scripts/install-mods.sh
@@ -136,6 +137,10 @@ jobs:
             echo "Error: TestPakMod_P.pak was not cleaned up after removal!"
             exit 1
           fi
+
+          echo ">>> Cleaning test fixtures before main server boot..."
+          sudo rm -rf ./game/Mods/NativeMods/TestLuaMod
+          sudo rm -rf ./game/Mods/ConfigOverrides/TestLuaMod
 
           echo ">>> Mod installation pipeline unit tests passed successfully!"
 
@@ -231,6 +236,6 @@ jobs:
       - name: Stop server
         if: always()
         run: |
-          docker stop palworld-dedicated-server
-          docker rm palworld-dedicated-server
-          docker rmi ${{ github.run_id }}
+          docker stop palworld-dedicated-server || true
+          docker rm palworld-dedicated-server || true
+          docker rmi ${{ github.run_id }} || true
