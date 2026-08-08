@@ -6,6 +6,10 @@ services:
     container_name: palworld-wine-server
     image: ghcr.io/ripps818/docker-palworld-dedicated-server-wine:latest
     restart: unless-stopped
+    # Only needed if AUTO_PAUSE_ENABLED=true - lets iptables install the
+    # NFLOG wake-on-connect rule.
+    # cap_add:
+    #   - NET_ADMIN
     logging:
       driver: "local"
       options:

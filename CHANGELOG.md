@@ -2,6 +2,14 @@
 
 [Back to main](README.md#changelog)
 
+## 2026-08-08
+
+- Added `AUTO_PAUSE_ENABLED` to freeze the gameserver when empty and save resources - by @THATDONFC
+  - Freezes the gameserver process (`SIGSTOP`) after `AUTO_PAUSE_TIMEOUT` seconds with no players, saving the world first.
+  - Resumes (`SIGCONT`) on an incoming connection attempt (via NFLOG packet capture, needs the `NET_ADMIN` capability - see `compose.yml`) or transparently on any REST API call, so scheduled backups/restarts/announces wake the server without needing to be pause-aware themselves.
+  - New `autopause` CLI (`docker exec <container> autopause status|resume|stop|continue`) for manual control; `stop`/`continue` are also used automatically to prevent a restart countdown from being interrupted by re-pausing.
+  - Requires `PLAYER_DETECTION_ENABLED=true` and `RESTAPI_ENABLED=true`; off by default.
+
 ## 2026-07-16
 
 - Added `NOSTEAM_ENABLED` environment variable - by @niklas2233

@@ -75,6 +75,12 @@ ENV DEBIAN_FRONTEND=noninteractive \
     RCON_PLAYER_DEBUG=false \
     RCON_PLAYER_DETECTION_STARTUP_DELAY=60 \
     RCON_PLAYER_DETECTION_CHECK_INTERVAL=15 \
+    # Auto-Pause-settings - NEEDS PLAYER_DETECTION_ENABLED, RESTAPI_ENABLED,
+    # and NET_ADMIN (see compose.yml)
+    AUTO_PAUSE_ENABLED=false \
+    AUTO_PAUSE_TIMEOUT=180 \
+    AUTO_PAUSE_LOG=false \
+    AUTO_PAUSE_KNOCKD_IF= \
     # Custom-script-settings
     CUSTOM_SCRIPT_ENABLED=false \
     CUSTOM_SCRIPT_PATH="/palworld/custom-script.sh" \
@@ -282,7 +288,16 @@ RUN apt-get update \
     xvfb \
     zenity \
     tzdata \
-    jq
+    jq \
+    iptables \
+    tcpdump \
+    iproute2 \
+    libcap2-bin
+
+# iptables/tcpdump need CAP_NET_ADMIN restored here since gosu drops to the
+# non-root steam user, clearing the container's granted capabilities.
+RUN setcap cap_net_admin=ep "$(readlink -f "$(command -v iptables)")" \
+    && setcap cap_net_admin=ep "$(command -v tcpdump)"
 
 # Configure locale
 RUN echo "LANG=US.UTF-8" >/etc/default/locale && \
@@ -333,6 +348,7 @@ RUN mkdir -p "$BACKUP_PATH" \
     && ln -s /scripts/restart.sh /usr/local/bin/restart \
     && ln -s /scripts/update.sh /usr/local/bin/update \
     && ln -s /scripts/install-mods.sh /usr/local/bin/install-mods \
+    && ln -s /scripts/autopausectl.sh /usr/local/bin/autopause \
     && printf '#!/bin/bash\nif [[ "${EUID}" -eq 0 ]]; then\n    exec gosu steam /home/steam/steamcmd/steamcmd.sh "$@"\nelse\n    exec /home/steam/steamcmd/steamcmd.sh "$@"\nfi\n' > /usr/local/bin/steamcmd \
     && chmod 755 /usr/local/bin/steamcmd
 

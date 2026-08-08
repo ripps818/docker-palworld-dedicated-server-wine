@@ -2,6 +2,7 @@
 
 source /includes/colors.sh
 source /includes/config.sh
+source /includes/autopause.sh
 
 # ---------------------------------------------------------------------------
 # Primitives — HTTP transport layer
@@ -14,6 +15,7 @@ source /includes/config.sh
 restapi_get() {
     local endpoint=$1
     local response http_code body admin_password
+    autopause_resume_and_wait || true
     admin_password=$(get_admin_password)
 
     response=$(curl -s \
@@ -42,6 +44,7 @@ restapi_post() {
     local endpoint=$1
     local json_body=${2:-}
     local http_code admin_password
+    autopause_resume_and_wait || true
     admin_password=$(get_admin_password)
     local curl_args=(-s --max-time "${RESTAPI_TIMEOUT:-10}" -u "admin:${admin_password}" -X POST -o /dev/null -w "%{http_code}")
 

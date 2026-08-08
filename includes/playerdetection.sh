@@ -13,13 +13,17 @@
 source /includes/colors.sh
 source /includes/restapi.sh
 source /includes/webhook.sh
+source /includes/autopause.sh
+source /includes/autopause-monitor.sh
 
 current_players=()
 
 player_detection_loop() {
     sleep "$PLAYER_DETECTION_STARTUP_DELAY"
+    autopause_init
     while true; do
         compare_players
+        autopause_tick "${#current_players[@]}"
         sleep "$PLAYER_DETECTION_CHECK_INTERVAL"
     done
 }
