@@ -69,6 +69,9 @@ jobs:
           mkdir -p ./game/Mods/NativeMods/TestPakMod
           touch ./game/Mods/NativeMods/TestPakMod/TestPakMod_P.pak
 
+          mkdir -p ./game/Mods/NativeMods/TestTildePakMod/~mods
+          touch ./game/Mods/NativeMods/TestTildePakMod/~mods/TestTildePakMod_P.pak
+
           mkdir -p ./game/Mods/NativeMods/TestPalSchemaMod/PalSchema/mods/TestPalSchemaSubMod
           echo '{"name": "TestPalSchemaSubMod"}' > ./game/Mods/NativeMods/TestPalSchemaMod/PalSchema/mods/TestPalSchemaSubMod/schema.json
 
@@ -97,9 +100,14 @@ jobs:
             exit 1
           fi
 
-          # 3. Pak LogicMod deployment
+          # 3. Pak LogicMod and ~mods deployment
           if [[ ! -f ./game/Pal/Content/Paks/LogicMods/TestPakMod_P.pak ]]; then
             echo "Error: TestPakMod_P.pak was not deployed to LogicMods!"
+            exit 1
+          fi
+
+          if [[ ! -f ./game/Pal/Content/Paks/~mods/TestTildePakMod_P.pak ]]; then
+            echo "Error: TestTildePakMod_P.pak was not deployed to ~mods!"
             exit 1
           fi
 
@@ -123,6 +131,7 @@ jobs:
 
           echo ">>> Testing mod removal and cleanup state..."
           sudo rm -rf ./game/Mods/NativeMods/TestPakMod
+          sudo rm -rf ./game/Mods/NativeMods/TestTildePakMod
           sudo rm -rf ./game/Mods/NativeMods/TestPalSchemaMod
 
           docker run --rm \
@@ -135,6 +144,11 @@ jobs:
 
           if [[ -f ./game/Pal/Content/Paks/LogicMods/TestPakMod_P.pak ]]; then
             echo "Error: TestPakMod_P.pak was not cleaned up after removal!"
+            exit 1
+          fi
+
+          if [[ -f ./game/Pal/Content/Paks/~mods/TestTildePakMod_P.pak ]]; then
+            echo "Error: TestTildePakMod_P.pak was not cleaned up after removal!"
             exit 1
           fi
 

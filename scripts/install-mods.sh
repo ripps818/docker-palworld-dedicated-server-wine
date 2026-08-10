@@ -466,7 +466,7 @@ if [[ -f "$state_file" ]]; then
     jq -r '.deployed_paks[]? // empty' "$state_file" 2>/dev/null | while read -r pak; do
         if [[ -n "$pak" ]]; then
             dbgi "Removing old deployed pak: ${pak}"
-            rm -f "${GAME_ROOT}/Pal/Content/Paks/LogicMods/${pak}"
+            rm -f "${GAME_ROOT}/Pal/Content/Paks/LogicMods/${pak}" "${GAME_ROOT}/Pal/Content/Paks/~mods/${pak}"
         fi
     done
     # Read deployed_ue4ss_files array and delete each file/directory
@@ -532,11 +532,14 @@ apply_config_overrides() {
     local mod_id="${2:-$pkg_name}"
     local target_dest_dir="$3"
 
+    local target_name=$(basename "$target_dest_dir")
     local override_src=""
     if [[ -d "${config_overrides_dir}/${pkg_name}" ]]; then
         override_src="${config_overrides_dir}/${pkg_name}"
     elif [[ -d "${config_overrides_dir}/${mod_id}" ]]; then
         override_src="${config_overrides_dir}/${mod_id}"
+    elif [[ -d "${config_overrides_dir}/${target_name}" ]]; then
+        override_src="${config_overrides_dir}/${target_name}"
     fi
 
     if [[ -n "$override_src" && -d "$override_src" && -d "$target_dest_dir" ]]; then
