@@ -51,13 +51,28 @@ function autopause_is_force_disabled() {
     [[ -f "${AUTOPAUSE_DISABLE_FILE}" ]]
 }
 
+# True only if every PID matching the executable is in state T (stopped).
+function autopause_process_is_stopped() {
+    local server_executable
+    server_executable=$(basename "${GAME_BIN}")
+
+    local -i total stopped
+    total=$(pgrep -f "${server_executable}" 2>/dev/null | wc -l)
+    stopped=$(pgrep -r T -f "${server_executable}" 2>/dev/null | wc -l)
+
+    [[ "${total}" -gt 0 ]] && [[ "${total}" -eq "${stopped}" ]]
+}
+
 # Clears stale state from a previous container run.
 function autopause_init() {
     mkdir -p "${AUTOPAUSE_STATE_DIR}" 2>/dev/null || true
     autopause_is_enabled || return 0
     rm -f "${AUTOPAUSE_PAUSE_FILE}" "${AUTOPAUSE_REQUEST_FILE}" "${AUTOPAUSE_DISABLE_FILE}" "${AUTOPAUSE_MONITOR_PIDFILE}"
     AUTOPAUSE_IDLE_SECONDS=0
-    ei "$(autopause_ts) >>> AUTO_PAUSE enabled (timeout=${AUTO_PAUSE_TIMEOUT:-180}s)"
+
+    local server_executable
+    server_executable=$(basename "${GAME_BIN}")
+    ei "$(autopause_ts) >>> AUTO_PAUSE enabled (timeout=${AUTO_PAUSE_TIMEOUT:-180}s, matching '${server_executable}')"
     return 0
 }
 
@@ -109,6 +124,16 @@ function autopause_pause() {
         return 1
     fi
 
+    # Already stopped (drift) - sync state, skip save/signal.
+    if autopause_process_is_stopped; then
+        ei "$(autopause_ts) >>> AUTO_PAUSE: process already stopped, syncing state without re-signaling"
+        touch "${AUTOPAUSE_PAUSE_FILE}" 2>/dev/null || true
+        rm -f "${AUTOPAUSE_REQUEST_FILE}"
+        autopause_monitor_start || true
+        autopause_wait_for_wake || true
+        return 0
+    fi
+
     ei "$(autopause_ts) >>> AUTO_PAUSE: server idle for ${AUTOPAUSE_IDLE_SECONDS}s, saving world before pausing..."
     if ! restapi_save; then
         ew "$(autopause_ts) > AUTO_PAUSE: save failed, aborting pause attempt (will retry next tick)"
@@ -117,7 +142,7 @@ function autopause_pause() {
 
     # SIGSTOP only the top PID would miss the actual engine process (Wine
     # wraps it in script/start.exe) - signal every matching PID instead.
-    ei "$(autopause_ts) >>> AUTO_PAUSE: pausing server (matching '${server_executable}')"
+    ei "$(autopause_ts) >>> AUTO_PAUSE: pausing server"
     pkill -STOP -f "${server_executable}" 2>/dev/null || true
     touch "${AUTOPAUSE_PAUSE_FILE}" 2>/dev/null || true
     rm -f "${AUTOPAUSE_REQUEST_FILE}"
@@ -148,11 +173,13 @@ function autopause_resume() {
 
     local server_executable
     server_executable=$(basename "${GAME_BIN}")
-    if pgrep -f "${server_executable}" >/dev/null; then
+    if ! pgrep -f "${server_executable}" >/dev/null; then
+        ew "$(autopause_ts) > AUTO_PAUSE: server process not found while resuming"
+    elif autopause_process_is_stopped; then
         pkill -CONT -f "${server_executable}" 2>/dev/null || true
         ei "$(autopause_ts) >>> AUTO_PAUSE: server resumed"
     else
-        ew "$(autopause_ts) > AUTO_PAUSE: server process not found while resuming"
+        ei "$(autopause_ts) >>> AUTO_PAUSE: process already running, skipping redundant SIGCONT"
     fi
 
     rm -f "${AUTOPAUSE_PAUSE_FILE}" "${AUTOPAUSE_REQUEST_FILE}"
