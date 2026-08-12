@@ -53,7 +53,7 @@ function autopause_monitor_start() {
             fi
             autopause_request_resume "incoming connection detected"
         else
-            ew "$(autopause_ts) > AUTO_PAUSE monitor: tcpdump failed (missing NET_ADMIN?), this cycle will only wake on REST API activity"
+            ew "$(autopause_ts) > AUTO_PAUSE monitor: tcpdump failed - likely missing the NET_ADMIN capability (uncomment cap_add in compose.yml), this cycle will only wake on REST API activity"
         fi
     ) &
     echo "$!" > "${AUTOPAUSE_MONITOR_PIDFILE}" 2>/dev/null || true
