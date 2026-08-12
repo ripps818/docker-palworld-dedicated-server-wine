@@ -13,6 +13,7 @@ function get_time() {
 
 function schedule_restart() {
     ew ">>> Automatic restart was triggered..."
+    autopause_disable
     if [[ -f "${GAME_ROOT}/PLAYER_DETECTION.PID" ]]; then
         export PLAYER_DETECTION_PID=$(<"${GAME_ROOT}/PLAYER_DETECTION.PID")
     fi

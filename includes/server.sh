@@ -103,6 +103,7 @@ function start_server() {
 
 function stop_server() {
     ew ">>> Stopping server..."
+    autopause_disable
     if [[ -n "${PLAYER_DETECTION_PID}" ]]; then
         kill -SIGTERM "${PLAYER_DETECTION_PID}" 2>/dev/null
     fi

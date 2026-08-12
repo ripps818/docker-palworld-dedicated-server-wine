@@ -47,6 +47,7 @@ ___
     - [Gameserver with REST API](#gameserver-with-rest-api)
   - [Run REST API commands](#run-rest-api-commands)
   - [Backup Manager](#backup-manager)
+  - [Automatic Server Pausing (Auto-Pause)](#automatic-server-pausing-auto-pause)
   - [Webhook integration](#webhook-integration)
     - [Supported events](#supported-events)
   - [Deploy with Helm](#deploy-with-helm)
@@ -237,6 +238,10 @@ services:
     container_name: palworld-wine-server
     image: ghcr.io/ripps818/docker-palworld-dedicated-server-wine:latest
     restart: unless-stopped
+    # Only needed if AUTO_PAUSE_ENABLED=true - lets iptables install the
+    # NFLOG wake-on-connect rule.
+    # cap_add:
+    #   - NET_ADMIN
     logging:
       driver: "local"
       options:
@@ -362,6 +367,22 @@ $ docker exec --user steam palworld-wine-server backup list 1
 >>> Listing 1 out of 2 backup file(s).
 2024-02-03 03:30:00 | saved-20240203_033000.tar.gz
 ```
+
+## Automatic Server Pausing (Auto-Pause)
+
+When `AUTO_PAUSE_ENABLED=true`, the gameserver process is frozen (`SIGSTOP`) after `AUTO_PAUSE_TIMEOUT` seconds with zero online players. This saves CPU resources and pauses world decay while empty.
+
+- **Wake-on-connect:** Requires the `NET_ADMIN` capability (see `compose.yml`) so netfilter can detect incoming connection attempts on game port 8211.
+- **REST API & Cron integration:** Scheduled backups, broadcasts, and restarts automatically wake the server without extra setup.
+- **Community Server support:** When `COMMUNITY_SERVER=true` (or `AUTO_PAUSE_HEARTBEAT_PULSE=true`), the server briefly micro-unpauses for 4 seconds every 90 seconds so Epic Online Services (EOS) and Steam master servers receive heartbeats, keeping the server listed online in the in-game browser.
+- **CLI Control:** Manage pause states on demand:
+  ```shell
+  $ docker exec palworld-wine-server autopause status
+  $ docker exec palworld-wine-server autopause resume
+  $ docker exec palworld-wine-server autopause stop
+  ```
+
+> See [ENV_VARS.md](/docs/ENV_VARS.md#auto_pause-explained) for all auto-pause configuration options.
 
 ## Webhook integration
 

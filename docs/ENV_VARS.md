@@ -40,6 +40,13 @@ These settings control the behavior of the Docker container:
 | RCON_PLAYER_DEBUG                     | (Legacy) Set to enabled will post debug messages to the console output                                                                             | false                          | Boolean                               |
 | RCON_PLAYER_DETECTION_STARTUP_DELAY   | (Legacy) Initial delay for start checking for players, consider steam-updates and server start up in seconds                                       | 60                             | Integer                               |
 | RCON_PLAYER_DETECTION_CHECK_INTERVAL  | (Legacy) Interval in seconds to wait for next check in the infinite loop                                                                           | 15                             | Integer                               |
+| AUTO_PAUSE_ENABLED                    | Freezes the gameserver process when empty to save CPU and stop world-time/resource generation, NEEDS `PLAYER_DETECTION_ENABLED` and `RESTAPI_ENABLED`, see [AUTO_PAUSE explained](#auto_pause-explained) | false                          | Boolean                               |
+| AUTO_PAUSE_TIMEOUT                    | Seconds the server must be empty before it is paused                                                                                                | 180                            | Integer                               |
+| AUTO_PAUSE_LOG                        | Set to enabled will post verbose pause/resume/monitor log messages to the console output                                                            | false                          | Boolean                               |
+| AUTO_PAUSE_KNOCKD_IF                  | Network interface to watch for incoming connections while paused. Leave empty to auto-detect the default route interface.                           |                                | String                                |
+| AUTO_PAUSE_HEARTBEAT_PULSE            | Periodically micro-unpause paused server for a few seconds to send EOS/Steam master server heartbeats (automatically active if `COMMUNITY_SERVER=true`) | false                          | Boolean                               |
+| AUTO_PAUSE_HEARTBEAT_INTERVAL         | Seconds between micro-unpause heartbeat pulses while paused                                                                                         | 90                             | Integer                               |
+| AUTO_PAUSE_HEARTBEAT_DURATION         | Duration in seconds to briefly unpause for the master server heartbeat ping                                                                         | 4                              | Integer                               |
 | CUSTOM_SCRIPT_ENABLED                | Set to enabled will execute a custom script before the gameserver starts, see `CUSTOM_SCRIPT_PATH`                                                  | false                          | Boolean                               |
 | CUSTOM_SCRIPT_PATH                   | Absolute path to the custom script to execute; the file must exist at container runtime (e.g. mounted via a volume)                                 | /palworld/custom-script.sh     | String (absolute path)                |
 | WORKSHOP_MOD_IDS                      | Comma-separated list of Steam Workshop Published File IDs to install/update. Can be combined with `workshop-mods.txt`.                               |                                | String                                |
@@ -63,6 +70,31 @@ SERVER_SETTINGS_MODE accepts 2 values:
 - `auto`: Settings are modified only by environment variables, manual edits will be ignored
 - `rcononly`: RCON-Settings are modified by environment variables (RCON_ENABLED, RCON_PORT, ADMIN_PASSWORD), everything else has to be done by editing the file directly, other environment variables are ignored. Note: RCON is deprecated by Pocketpair — prefer `auto` mode.
 - `manual`: Settings are modified only by editing the file directly, environment variables are ignored
+
+### AUTO_PAUSE explained
+
+When `AUTO_PAUSE_ENABLED=true`, the container freezes the gameserver process (`SIGSTOP`) after it has been empty for `AUTO_PAUSE_TIMEOUT` seconds, saving the world first. This stops pal stress/base raids, resource generation, and CPU usage while nobody is online.
+
+Requirements:
+
+- `PLAYER_DETECTION_ENABLED=true` and `RESTAPI_ENABLED=true` — auto-pause relies on the existing player-detection loop and REST API.
+- The `NET_ADMIN` capability on the container (see the commented `cap_add` block in `compose.yml`) — needed to install the netfilter (NFLOG) rule that detects an incoming connection attempt while the server is paused. Without it, the server will only wake on REST API activity (backups, announces, restarts, etc.), not on a player actually trying to join — you'd need to trigger a wake manually (`docker exec palworld-wine-server autopause resume`) or wait for the next scheduled backup/restart.
+
+Waking up:
+
+- **A player connects**: the NFLOG monitor detects the incoming packet and resumes the server.
+- **Any REST API call is made** (a scheduled backup, an announce, a restart, etc.): every REST API call transparently resumes a paused server first, so none of the existing automation needs to be pause-aware itself.
+- **Manually**: `docker exec palworld-wine-server autopause resume`.
+
+Community Server Keepalive (Micro-Unpause):
+
+- When `COMMUNITY_SERVER=true` (or `AUTO_PAUSE_HEARTBEAT_PULSE=true`), the server will periodically unpause (`SIGCONT`) for 4 seconds every 90 seconds while idle. This allows Epic Online Services (EOS) and Steam master servers to receive regular heartbeat pings, keeping the server listed online in the in-game Community Server browser without dropping off while paused.
+
+Other `autopause` CLI commands (run via `docker exec palworld-wine-server autopause <command>`):
+
+- `stop` — force-disable auto-pause until re-enabled (used automatically during restarts, so a restart countdown can't be interrupted by the server falling back asleep).
+- `continue` — re-enable auto-pause after `stop`.
+- `status` — show whether auto-pause is enabled, force-disabled, or currently paused.
 
 ### Steam Workshop Mod Settings
 
