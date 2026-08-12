@@ -81,6 +81,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     AUTO_PAUSE_TIMEOUT=180 \
     AUTO_PAUSE_LOG=false \
     AUTO_PAUSE_KNOCKD_IF= \
+    AUTO_PAUSE_HEARTBEAT_PULSE=false \
+    AUTO_PAUSE_HEARTBEAT_INTERVAL=90 \
+    AUTO_PAUSE_HEARTBEAT_DURATION=4 \
     # Custom-script-settings
     CUSTOM_SCRIPT_ENABLED=false \
     CUSTOM_SCRIPT_PATH="/palworld/custom-script.sh" \
