@@ -11,7 +11,7 @@ internal_vars=(
     WINE_BIN WINEARCH WINEDEBUG WINEDLLOVERRIDES WINEPREFIX WINETRICK_BIN
 )
 
-documented=$(grep -E '^\| *`?[A-Z][A-Z0-9_]+`? *\|' docs/ENV_VARS.md | sed -E 's/^\| *`?([A-Z0-9_]+)`?.*/\1/' | sort -u)
+documented=$(grep -E '^\| *`?[A-Z][A-Z0-9_]+(`| |\|)' docs/ENV_VARS.md | sed -E 's/^\| *`?([A-Z0-9_]+)`?.*/\1/' | sort -u)
 in_dockerfile=$(grep -oP '^\s*(?:ENV\s+)?[A-Z][A-Z0-9_]*(?==)' Dockerfile | sed -E 's/^\s*(ENV\s+)?//' | sort -u)
 
 missing=0
