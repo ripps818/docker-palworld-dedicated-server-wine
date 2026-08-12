@@ -1,0 +1,49 @@
+name: check-env-var-defaults
+
+on:
+  pull_request:
+    paths:
+      - 'Dockerfile'
+      - 'default.env'
+      - 'docs/ENV_VARS.md'
+
+jobs:
+  check-env-defaults:
+    name: Every documented env var has a real default
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Check Dockerfile and default.env for missing defaults
+        run: |
+          documented=$(grep -E '^\| *`?[A-Z][A-Z0-9_]+`? *\|' docs/ENV_VARS.md | sed -E 's/^\| *`?([A-Z0-9_]+)`?.*/\1/' | sort -u)
+
+          missing=0
+          while IFS= read -r var; do
+              [[ -z "$var" ]] && continue
+              in_dockerfile=0
+              in_default_env=0
+              grep -qE "^\s*${var}=" Dockerfile && in_dockerfile=1
+              grep -qE "^${var}=" default.env && in_default_env=1
+
+              if [[ $in_dockerfile -eq 0 || $in_default_env -eq 0 ]]; then
+                  missing_from=""
+                  [[ $in_dockerfile -eq 0 ]] && missing_from+=" Dockerfile"
+                  [[ $in_default_env -eq 0 ]] && missing_from+=" default.env"
+                  echo "::error::${var} is documented in docs/ENV_VARS.md but missing a default in:${missing_from}"
+                  missing=1
+              fi
+          done <<< "$documented"
+
+          if [[ $missing -eq 1 ]]; then
+              echo ""
+              echo "A documented env var with no real default can fail silently, or worse -"
+              echo "e.g. AUTO_UPDATE_CRON_EXPRESSION shipped with no default and no code"
+              echo "fallback, so enabling AUTO_UPDATE_ENABLED wrote a blank cron line that"
+              echo "crashed supercronic entirely, taking every other cron job down with it."
+              echo "Add the missing default(s) to both Dockerfile and default.env."
+              exit 1
+          fi
+
+          echo "All documented env vars have defaults in both Dockerfile and default.env."
