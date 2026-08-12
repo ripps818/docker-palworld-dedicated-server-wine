@@ -1,12 +1,8 @@
 #!/bin/bash
-# Keeps docs/ENV_VARS.md, Dockerfile, and default.env from drifting apart:
-# every documented var needs a real default in both Dockerfile and
-# default.env, and every Dockerfile var needs to be documented unless it's
-# genuinely internal (see internal_vars below). Run from the repo root.
+# Keeps docs/ENV_VARS.md, Dockerfile, and default.env from drifting apart. Run from the repo root.
 set -euo pipefail
 
-# Internal architecture constants (paths, Wine setup, build-tool vars) that
-# are never meant to be user-tunable - excluded from the "must be documented" check.
+# Internal architecture constants, never meant to be user-tunable - excluded from the docs check.
 internal_vars=(
     DEBIAN_FRONTEND DISPLAY
     GAME_BIN GAME_CONFIG_PATH GAME_ENGINE_FILE GAME_PATH GAME_ROOT
