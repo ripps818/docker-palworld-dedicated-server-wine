@@ -2,9 +2,13 @@
 # shellcheck disable=SC1091
 
 source /includes/config.sh
+source /includes/autopause.sh
 
-# Paused (AUTO_PAUSE) servers can't answer REST - not unhealthy, safe no-op if absent.
-if [[ -f "${GAME_ROOT:-/palworld}/.autopause/paused" ]]; then
+# Paused (AUTO_PAUSE) servers can't answer REST - not unhealthy. Confirm the
+# process is actually stopped, not just that the flag says so, since a stale
+# flag left over from a prior container run would otherwise mask a genuine
+# hang/install behind a false-positive pause.
+if [[ -f "${GAME_ROOT:-/palworld}/.autopause/paused" ]] && autopause_process_is_stopped; then
     exit 0
 fi
 
