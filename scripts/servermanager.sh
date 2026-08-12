@@ -69,6 +69,7 @@ do
     ei ">>> Starting server manager"
     e "> Started at: $current_date $current_time"
     rm -f "${GAME_ROOT}/.stopping" 2>/dev/null || true
+    autopause_init
     start_main &
     START_MAIN_PID="$!"
 
