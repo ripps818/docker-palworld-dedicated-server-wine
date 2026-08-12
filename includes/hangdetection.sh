@@ -36,7 +36,6 @@ function hangdetect_is_stopping() {
 
 function hangdetect_loop() {
     hangdetect_is_enabled || return 0
-    rm -f "${GAME_ROOT:-/palworld}/.stopping" 2>/dev/null || true
 
     local -i misses=0
     local -i seen_healthy=0
