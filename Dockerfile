@@ -83,6 +83,11 @@ ENV DEBIAN_FRONTEND=noninteractive \
     AUTO_PAUSE_TIMEOUT=180 \
     AUTO_PAUSE_LOG=false \
     AUTO_PAUSE_KNOCKD_IF= \
+    # Hang-detection-settings - NEEDS RESTAPI_ENABLED
+    HANG_DETECTION_ENABLED=false \
+    HANG_DETECTION_INTERVAL=30 \
+    HANG_DETECTION_THRESHOLD=3 \
+    HANG_DETECTION_FIRST_SUCCESS_TIMEOUT=1800 \
     # Custom-script-settings
     CUSTOM_SCRIPT_ENABLED=false \
     CUSTOM_SCRIPT_PATH="/palworld/custom-script.sh" \
