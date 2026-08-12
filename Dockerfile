@@ -53,6 +53,12 @@ ENV DEBIAN_FRONTEND=noninteractive \
     # SteamCMD-settings
     ALWAYS_UPDATE_ON_START=true \
     STEAMCMD_VALIDATE_FILES=true \
+    # Auto-update-settings
+    AUTO_UPDATE_ENABLED=false \
+    AUTO_UPDATE_COUNTDOWN=15 \
+    AUTO_UPDATE_ANNOUNCE_MESSAGES_ENABLED=true \
+    AUTO_UPDATE_CRON_EXPRESSION="0 * * * *" \
+    AUTO_UPDATE_DEBUG_OVERRIDE=false \
     # Backup-settings
     BACKUP_ENABLED=true \
     BACKUP_ANNOUNCE_MESSAGES_ENABLED=true \
@@ -92,6 +98,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     WORKSHOP_MOD_UPDATE_CRON="0 */6 * * *" \
     STEAM_USERNAME="" \
     STEAM_PASSWORD="" \
+    WORKSHOP_MODS_DEBUG=false \
     INSTALL_UE4SS_EXPERIMENTAL=false \
     UE4SS_EXPERIMENTAL_URL="https://github.com/Okaetsu/RE-UE4SS/releases/download/experimental-palworld/UE4SS-Palworld.zip" \
     # Webhook-settings
