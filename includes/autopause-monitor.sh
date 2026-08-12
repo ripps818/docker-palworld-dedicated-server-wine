@@ -47,11 +47,14 @@ function autopause_monitor_start() {
     done
 
     (
-        tcpdump -i "nflog:${AUTOPAUSE_NFLOG_GROUP}" -n -c 1 >/dev/null 2>&1
-        if [[ -n $AUTO_PAUSE_LOG ]] && [[ "${AUTO_PAUSE_LOG,,}" == "true" ]]; then
-            ei "$(autopause_ts) > AUTO_PAUSE monitor: incoming connection detected"
+        if tcpdump -i "nflog:${AUTOPAUSE_NFLOG_GROUP}" -n -c 1 >/dev/null 2>&1; then
+            if [[ -n $AUTO_PAUSE_LOG ]] && [[ "${AUTO_PAUSE_LOG,,}" == "true" ]]; then
+                ei "$(autopause_ts) > AUTO_PAUSE monitor: incoming connection detected"
+            fi
+            autopause_request_resume "incoming connection detected"
+        else
+            ew "$(autopause_ts) > AUTO_PAUSE monitor: tcpdump failed - likely missing the NET_ADMIN capability (uncomment cap_add in compose.yml), this cycle will only wake on REST API activity"
         fi
-        autopause_request_resume "incoming connection detected"
     ) &
     echo "$!" > "${AUTOPAUSE_MONITOR_PIDFILE}" 2>/dev/null || true
 
