@@ -2,6 +2,12 @@
 
 [Back to main](README.md#changelog)
 
+## 2026-08-12
+
+- Fixed `AUTO_PAUSE`'s wake-on-connect monitor treating a failed `tcpdump` (e.g. missing `NET_ADMIN`) as a detected connection - by @THATDONFC
+  - Without this fix, enabling `AUTO_PAUSE_ENABLED=true` without also granting `NET_ADMIN` caused the server to wake itself up almost immediately on every pause cycle, silently defeating the resource savings the feature is meant to provide.
+  - The monitor now checks `tcpdump`'s actual exit status; only a genuine captured packet triggers a wake. A failed monitor now correctly falls back to REST-API-only wake, matching the documented degraded behavior.
+
 ## 2026-08-08
 
 - Added `AUTO_PAUSE_ENABLED` to freeze the gameserver when empty and save resources - by @THATDONFC
