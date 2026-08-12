@@ -1,0 +1,20 @@
+name: Check env var defaults
+
+on:
+  pull_request:
+    paths:
+      - 'Dockerfile'
+      - 'default.env'
+      - 'docs/ENV_VARS.md'
+      - '.github/scripts/check-env-defaults.sh'
+
+jobs:
+  check-env-defaults:
+    name: Docker - Env var docs in sync
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Verify documented vars have real defaults, and Dockerfile vars are documented
+        run: bash .github/scripts/check-env-defaults.sh
