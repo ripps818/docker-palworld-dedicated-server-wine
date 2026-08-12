@@ -47,6 +47,10 @@ These settings control the behavior of the Docker container:
 | AUTO_PAUSE_HEARTBEAT_PULSE            | Periodically micro-unpause paused server for a few seconds to send EOS/Steam master server heartbeats (automatically active if `COMMUNITY_SERVER=true`) | false                          | Boolean                               |
 | AUTO_PAUSE_HEARTBEAT_INTERVAL         | Seconds between micro-unpause heartbeat pulses while paused                                                                                         | 90                             | Integer                               |
 | AUTO_PAUSE_HEARTBEAT_DURATION         | Duration in seconds to briefly unpause for the master server heartbeat ping                                                                         | 4                              | Integer                               |
+| HANG_DETECTION_ENABLED                | Kills and restarts the gameserver process if it stops answering REST calls, NEEDS `RESTAPI_ENABLED`, see [Hang detection explained](#hang-detection-explained) | false                          | Boolean                               |
+| HANG_DETECTION_INTERVAL               | Seconds between responsiveness checks                                                                                                               | 30                             | Integer                               |
+| HANG_DETECTION_THRESHOLD              | Consecutive failed checks before forcing a restart                                                                                                  | 3                              | Integer                               |
+| HANG_DETECTION_FIRST_SUCCESS_TIMEOUT  | Seconds to wait for the first-ever successful check before giving up and forcing a restart                                                          | 1800                           | Integer                               |
 | CUSTOM_SCRIPT_ENABLED                | Set to enabled will execute a custom script before the gameserver starts, see `CUSTOM_SCRIPT_PATH`                                                  | false                          | Boolean                               |
 | CUSTOM_SCRIPT_PATH                   | Absolute path to the custom script to execute; the file must exist at container runtime (e.g. mounted via a volume)                                 | /palworld/custom-script.sh     | String (absolute path)                |
 | WORKSHOP_MOD_IDS                      | Comma-separated list of Steam Workshop Published File IDs to install/update. Can be combined with `workshop-mods.txt`.                               |                                | String                                |
@@ -95,6 +99,18 @@ Other `autopause` CLI commands (run via `docker exec palworld-wine-server autopa
 - `stop` — force-disable auto-pause until re-enabled (used automatically during restarts, so a restart countdown can't be interrupted by the server falling back asleep).
 - `continue` — re-enable auto-pause after `stop`.
 - `status` — show whether auto-pause is enabled, force-disabled, or currently paused.
+
+### Hang detection explained
+
+When `HANG_DETECTION_ENABLED=true`, a background loop checks the REST API every `HANG_DETECTION_INTERVAL` seconds. It never acts on failures until the *first* successful check - a fresh install/update can take anywhere from seconds to several minutes, and only counting failures after a proven-good check avoids force-killing a server that's still legitimately booting. Once it's seen one success, `HANG_DETECTION_THRESHOLD` consecutive failed checks force-kills the gameserver process so the container's existing restart-on-exit behavior recovers it - the same recovery path as an ordinary crash, no Docker-level restart or extra privileges needed.
+
+Before that first success, a separate and much longer backstop applies: `HANG_DETECTION_FIRST_SUCCESS_TIMEOUT` - if the server is alive but never becomes responsive at all within this many seconds, it's force-restarted too, so a genuinely stuck-forever first boot (not just a slow one) still eventually recovers.
+
+Requirements:
+
+- `RESTAPI_ENABLED=true` - hang detection relies on the REST API to judge responsiveness.
+
+Suspended automatically during any intentional stop or restart (in-game shutdown countdown, `docker stop`, etc.) so it never competes with a graceful shutdown already in progress.
 
 ### Steam Workshop Mod Settings
 

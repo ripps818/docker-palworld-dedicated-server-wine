@@ -63,12 +63,16 @@ function autopause_process_is_stopped() {
     [[ "${total}" -gt 0 ]] && [[ "${total}" -eq "${stopped}" ]]
 }
 
-# Clears stale state from a previous container run.
+# Clears stale state from a previous container run - unconditionally, since a
+# leftover 'paused' flag is read by healthcheck.sh before AUTO_PAUSE's own
+# loop would otherwise get around to clearing it (and never would at all if
+# AUTO_PAUSE_ENABLED is now false).
 function autopause_init() {
     mkdir -p "${AUTOPAUSE_STATE_DIR}" 2>/dev/null || true
-    autopause_is_enabled || return 0
     rm -f "${AUTOPAUSE_PAUSE_FILE}" "${AUTOPAUSE_REQUEST_FILE}" "${AUTOPAUSE_DISABLE_FILE}" "${AUTOPAUSE_MONITOR_PIDFILE}"
     AUTOPAUSE_IDLE_SECONDS=0
+
+    autopause_is_enabled || return 0
 
     local server_executable
     server_executable=$(basename "${GAME_BIN}")

@@ -23,6 +23,8 @@ FROM cm2network/steamcmd:root@sha256:e6b6b3503bf0e41feafe12dc709c90151afba193e12
 LABEL maintainer="Ripps - https://github.com/ripps818/docker-palworld-dedicated-server-wine"
 LABEL org.opencontainers.image.authors="Ripps"
 LABEL org.opencontainers.image.source="https://github.com/ripps818/docker-palworld-dedicated-server-wine"
+# Lets external tooling discover this container without a configured name.
+LABEL io.github.ripps818.role="palworld-server"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -84,6 +86,11 @@ ENV DEBIAN_FRONTEND=noninteractive \
     AUTO_PAUSE_HEARTBEAT_PULSE=false \
     AUTO_PAUSE_HEARTBEAT_INTERVAL=90 \
     AUTO_PAUSE_HEARTBEAT_DURATION=4 \
+    # Hang-detection-settings - NEEDS RESTAPI_ENABLED
+    HANG_DETECTION_ENABLED=false \
+    HANG_DETECTION_INTERVAL=30 \
+    HANG_DETECTION_THRESHOLD=3 \
+    HANG_DETECTION_FIRST_SUCCESS_TIMEOUT=1800 \
     # Custom-script-settings
     CUSTOM_SCRIPT_ENABLED=false \
     CUSTOM_SCRIPT_PATH="/palworld/custom-script.sh" \
@@ -365,8 +372,9 @@ RUN supercronic --version
 
 VOLUME ["${GAME_ROOT}"]
 
-HEALTHCHECK --interval=10s --timeout=10s --start-period=30s --retries=3 \ 
-    CMD pgrep -f "PalServer-Win64" >/dev/null 2>&1 || exit 1
+# 180s start-period avoids false-unhealthy during a normal ~90s+ boot.
+HEALTHCHECK --interval=10s --timeout=10s --start-period=180s --retries=3 \
+    CMD /scripts/healthcheck.sh
 
 ENTRYPOINT  ["/entrypoint.sh"]
 CMD ["/scripts/servermanager.sh"]

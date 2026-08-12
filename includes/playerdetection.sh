@@ -20,7 +20,6 @@ current_players=()
 
 player_detection_loop() {
     sleep "$PLAYER_DETECTION_STARTUP_DELAY"
-    autopause_init
     while true; do
         compare_players
         autopause_tick "${#current_players[@]}"

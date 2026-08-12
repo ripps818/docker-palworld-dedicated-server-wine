@@ -104,6 +104,7 @@ function start_server() {
 function stop_server() {
     ew ">>> Stopping server..."
     autopause_disable
+    touch "${GAME_ROOT}/.stopping" 2>/dev/null || true
     if [[ -n "${PLAYER_DETECTION_PID}" ]]; then
         kill -SIGTERM "${PLAYER_DETECTION_PID}" 2>/dev/null
     fi

@@ -16,6 +16,7 @@ fi
 source /includes/colors.sh
 source /includes/config.sh
 source /includes/cron.sh
+source /includes/hangdetection.sh
 source /includes/playerdetection.sh
 source /includes/security.sh
 source /includes/server.sh
@@ -23,6 +24,7 @@ source /includes/webhook.sh
 
 START_MAIN_PID=
 PLAYER_DETECTION_PID=
+HANG_DETECTION_PID=
 
 
 
@@ -66,6 +68,8 @@ do
     current_time=$(date +%H:%M:%S)
     ei ">>> Starting server manager"
     e "> Started at: $current_date $current_time"
+    rm -f "${GAME_ROOT}/.stopping" 2>/dev/null || true
+    autopause_init
     start_main &
     START_MAIN_PID="$!"
 
@@ -76,6 +80,12 @@ do
        ew "> Player detection thread started with pid ${PLAYER_DETECTION_PID}"
     fi
 
+    if hangdetect_is_enabled; then
+        hangdetect_loop &
+        HANG_DETECTION_PID="$!"
+        ew "> Hang detection thread started with pid ${HANG_DETECTION_PID}"
+    fi
+
     ew "> Server main thread started with pid ${START_MAIN_PID}"
     wait ${START_MAIN_PID} || true
 
@@ -83,6 +93,11 @@ do
         kill -SIGTERM "${PLAYER_DETECTION_PID}" 2>/dev/null || true
         PLAYER_DETECTION_PID=""
         rm -f "${GAME_ROOT}/PLAYER_DETECTION.PID"
+    fi
+
+    if [[ -n "${HANG_DETECTION_PID}" ]]; then
+        kill -SIGTERM "${HANG_DETECTION_PID}" 2>/dev/null || true
+        HANG_DETECTION_PID=""
     fi
 
     if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then

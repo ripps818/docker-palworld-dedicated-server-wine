@@ -10,6 +10,8 @@ services:
     # NFLOG wake-on-connect rule.
     # cap_add:
     #   - NET_ADMIN
+    # Gives a graceful shutdown room to finish before Docker SIGKILLs it.
+    stop_grace_period: 30s
     logging:
       driver: "local"
       options:

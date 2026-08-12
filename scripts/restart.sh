@@ -52,6 +52,7 @@ function schedule_restart() {
     done
 
     if [[ -n $RESTAPI_ENABLED ]] && [[ "${RESTAPI_ENABLED,,}" == "true" ]]; then
+        touch "${GAME_ROOT}/.stopping" 2>/dev/null || true
         if [[ -n $RESTART_ANNOUNCE_MESSAGES_ENABLED ]] && [[ "${RESTART_ANNOUNCE_MESSAGES_ENABLED,,}" == "true" ]]; then
             restapi_announce "$(get_time) Saving world before restart..."
             restapi_save
