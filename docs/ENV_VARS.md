@@ -44,6 +44,9 @@ These settings control the behavior of the Docker container:
 | AUTO_PAUSE_TIMEOUT                    | Seconds the server must be empty before it is paused                                                                                                | 180                            | Integer                               |
 | AUTO_PAUSE_LOG                        | Set to enabled will post verbose pause/resume/monitor log messages to the console output                                                            | false                          | Boolean                               |
 | AUTO_PAUSE_KNOCKD_IF                  | Network interface to watch for incoming connections while paused. Leave empty to auto-detect the default route interface.                           |                                | String                                |
+| AUTO_PAUSE_HEARTBEAT_PULSE            | Periodically micro-unpause paused server for a few seconds to send EOS/Steam master server heartbeats (automatically active if `COMMUNITY_SERVER=true`) | false                          | Boolean                               |
+| AUTO_PAUSE_HEARTBEAT_INTERVAL         | Seconds between micro-unpause heartbeat pulses while paused                                                                                         | 90                             | Integer                               |
+| AUTO_PAUSE_HEARTBEAT_DURATION         | Duration in seconds to briefly unpause for the master server heartbeat ping                                                                         | 4                              | Integer                               |
 | CUSTOM_SCRIPT_ENABLED                | Set to enabled will execute a custom script before the gameserver starts, see `CUSTOM_SCRIPT_PATH`                                                  | false                          | Boolean                               |
 | CUSTOM_SCRIPT_PATH                   | Absolute path to the custom script to execute; the file must exist at container runtime (e.g. mounted via a volume)                                 | /palworld/custom-script.sh     | String (absolute path)                |
 | WORKSHOP_MOD_IDS                      | Comma-separated list of Steam Workshop Published File IDs to install/update. Can be combined with `workshop-mods.txt`.                               |                                | String                                |
@@ -82,6 +85,10 @@ Waking up:
 - **A player connects**: the NFLOG monitor detects the incoming packet and resumes the server.
 - **Any REST API call is made** (a scheduled backup, an announce, a restart, etc.): every REST API call transparently resumes a paused server first, so none of the existing automation needs to be pause-aware itself.
 - **Manually**: `docker exec palworld-wine-server autopause resume`.
+
+Community Server Keepalive (Micro-Unpause):
+
+- When `COMMUNITY_SERVER=true` (or `AUTO_PAUSE_HEARTBEAT_PULSE=true`), the server will periodically unpause (`SIGCONT`) for 4 seconds every 90 seconds while idle. This allows Epic Online Services (EOS) and Steam master servers to receive regular heartbeat pings, keeping the server listed online in the in-game Community Server browser without dropping off while paused.
 
 Other `autopause` CLI commands (run via `docker exec palworld-wine-server autopause <command>`):
 

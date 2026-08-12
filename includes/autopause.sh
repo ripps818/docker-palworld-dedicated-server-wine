@@ -154,10 +154,33 @@ function autopause_pause() {
 
 # Blocks until a resume is requested (REST call, monitor, or manual CLI).
 function autopause_wait_for_wake() {
+    local -i pulse_timer=0
+    local -i pulse_interval="${AUTO_PAUSE_HEARTBEAT_INTERVAL:-90}"
+    local -i pulse_duration="${AUTO_PAUSE_HEARTBEAT_DURATION:-4}"
+    local server_executable
+    server_executable=$(basename "${GAME_BIN}")
+
     while autopause_is_paused; do
         if [[ -f "${AUTOPAUSE_REQUEST_FILE}" ]]; then
             break
         fi
+
+        # Micro-unpause heartbeat pulse for Community Server master list keepalive
+        if [[ "${COMMUNITY_SERVER,,}" == "true" ]] || [[ "${AUTO_PAUSE_HEARTBEAT_PULSE,,}" == "true" ]]; then
+            pulse_timer+=1
+            if [[ ${pulse_timer} -ge ${pulse_interval} ]]; then
+                if [[ "${AUTO_PAUSE_LOG,,}" == "true" ]]; then
+                    ei "$(autopause_ts) >>> AUTO_PAUSE: sending micro-unpause heartbeat pulse (${pulse_duration}s)"
+                fi
+                pkill -CONT -f "${server_executable}" 2>/dev/null || true
+                sleep "${pulse_duration}"
+                if autopause_is_paused && [[ ! -f "${AUTOPAUSE_REQUEST_FILE}" ]]; then
+                    pkill -STOP -f "${server_executable}" 2>/dev/null || true
+                fi
+                pulse_timer=0
+            fi
+        fi
+
         sleep 1
     done
     autopause_resume || true
