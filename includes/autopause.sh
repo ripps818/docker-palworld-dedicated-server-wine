@@ -63,6 +63,18 @@ function autopause_process_is_stopped() {
     [[ "${total}" -gt 0 ]] && [[ "${total}" -eq "${stopped}" ]]
 }
 
+# Bulk `pkill -CONT -f` reliably continues the game engine but sometimes
+# misses 'script' - game resumes fine, but console output silently stops
+# reaching docker logs until script gets its own SIGCONT.
+function autopause_ensure_console_relay_resumed() {
+    local script_pid
+    script_pid=$(pgrep -x script 2>/dev/null | head -n1)
+    if [[ -n "${script_pid}" ]] && [[ "$(ps -o stat= -p "${script_pid}" 2>/dev/null)" == T* ]]; then
+        kill -CONT "${script_pid}" 2>/dev/null || true
+    fi
+    return 0
+}
+
 # Clears stale state from a previous container run - unconditionally, since a
 # leftover 'paused' flag is read by healthcheck.sh before AUTO_PAUSE's own
 # loop would otherwise get around to clearing it (and never would at all if
@@ -177,6 +189,7 @@ function autopause_wait_for_wake() {
                     ei "$(autopause_ts) >>> AUTO_PAUSE: sending micro-unpause heartbeat pulse (${pulse_duration}s)"
                 fi
                 pkill -CONT -f "${server_executable}" 2>/dev/null || true
+                autopause_ensure_console_relay_resumed
                 sleep "${pulse_duration}"
                 if autopause_is_paused && [[ ! -f "${AUTOPAUSE_REQUEST_FILE}" ]]; then
                     pkill -STOP -f "${server_executable}" 2>/dev/null || true
@@ -204,6 +217,7 @@ function autopause_resume() {
         ew "$(autopause_ts) > AUTO_PAUSE: server process not found while resuming"
     elif autopause_process_is_stopped; then
         pkill -CONT -f "${server_executable}" 2>/dev/null || true
+        autopause_ensure_console_relay_resumed
         ei "$(autopause_ts) >>> AUTO_PAUSE: server resumed"
     else
         ei "$(autopause_ts) >>> AUTO_PAUSE: process already running, skipping redundant SIGCONT"
