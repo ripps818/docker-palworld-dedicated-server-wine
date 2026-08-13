@@ -98,7 +98,28 @@ function start_server() {
     # Real pty (via script) so Wine's WriteConsoleW transcodes instead of emitting raw UTF-16LE
     local wine_cmd
     wine_cmd="exec $(printf '%q ' "${WINE_BIN}" "${GAME_BIN}" "${START_OPTIONS[@]}")"
-    script -qec "${wine_cmd}" /dev/null
+
+    script -qec "${wine_cmd}" /dev/null &
+    local script_pid="$!"
+
+    # script's own stdin is /dev/null (not a real tty), so its pty defaults to
+    # a 0x0 window - Wine's console emulation then wraps long lines at some
+    # narrow fallback width, splitting them mid-word. Give it a wide window
+    # before Wine gets a chance to query it.
+    local fd target pty_dev=""
+    for _ in {1..30}; do
+        for fd in "/proc/${script_pid}/fd/"*; do
+            target=$(readlink "${fd}" 2>/dev/null) || true
+            if [[ "${target}" =~ ^/dev/pts/[0-9]+$ ]]; then
+                pty_dev="${target}"
+                break 2
+            fi
+        done
+        sleep 0.1
+    done
+    [[ -n "${pty_dev}" ]] && stty -F "${pty_dev}" cols 500 rows 500 2>/dev/null || true
+
+    wait "${script_pid}"
 }
 
 function stop_server() {
