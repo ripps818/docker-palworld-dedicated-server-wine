@@ -3,11 +3,6 @@
 # Docker - Palworld Dedicated Server Wine
 
 This is a modified version of a linux palworld server to use the Windows version the Palworld server instead of Linux. I've tried my best to make everything else from the previous repository work in this version, but there will probably be some incompatibilities.
-___
-
-[![Build-Status develop](https://github.com/ripps818/docker-palworld-dedicated-server-wine/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/ripps818/docker-palworld-dedicated-server-wine/actions/workflows/docker-publish.yml)
-
-This Docker image includes a Palworld Dedicated Server based on Wine and Docker.
 
 
 ___
