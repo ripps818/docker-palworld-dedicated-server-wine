@@ -70,7 +70,6 @@ function check_and_run_custom_script() {
 
 function start_server() {
     cd "$GAME_ROOT" || exit
-    setup_configs
     ei ">>> Preparing to start the gameserver"
     START_OPTIONS=()
     if [[ -n $COMMUNITY_SERVER ]] && [[ "${COMMUNITY_SERVER,,}" == "true" ]]; then

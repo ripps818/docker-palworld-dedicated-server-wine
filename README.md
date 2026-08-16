@@ -105,6 +105,7 @@ You can find the [changelog here](CHANGELOG.md)
    - Make sure you setup PUID and PGID according to the user you want to use
      - **PUID and PGID 0 will error out, thats on purpose!**
      - if you use Docker as root, then you can just use 1000 inside the container
+   - **Change `ADMIN_PASSWORD` (and `SERVER_PASSWORD` if set)** in `default.env` from default values (`adminPasswordHere` / `serverPasswordHere`). The container enforces security checks and will abort server start if default passwords remain configured.
    - Refer to the [Environment-Variables](#environment-variables) section for more information
 6. Start the container via `docker-compose up -d && docker-compose logs -f`
    - Watch the log, if no errors occur you can close the logs with ctrl+c

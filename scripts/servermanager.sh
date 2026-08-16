@@ -35,6 +35,7 @@ function term_handler() {
 
 # Main process thread
 function start_main() {
+    setup_configs
     check_for_default_credentials
     check_for_deprecated_variables
 	if [ "${WINETRICK_ON_START}" == "true" ]; then
