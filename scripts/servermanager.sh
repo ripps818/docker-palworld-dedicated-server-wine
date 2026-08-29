@@ -14,6 +14,7 @@ if [ ! -d "${WINEPREFIX}" ]; then
 fi
 
 source /includes/colors.sh
+source /includes/utils.sh
 source /includes/config.sh
 source /includes/cron.sh
 source /includes/hangdetection.sh

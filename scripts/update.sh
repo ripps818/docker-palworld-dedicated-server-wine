@@ -4,6 +4,7 @@
 set -e
 
 source /includes/colors.sh
+source /includes/utils.sh
 source /includes/restapi.sh
 source /includes/server.sh
 source /includes/webhook.sh
@@ -37,7 +38,7 @@ function check_for_update() {
         exit 0
     fi
 
-    current_manifest=$(awk '/manifest/{count++} count==2 {print $2; exit}' "$acf_file" | tr -d '"\r')
+    current_manifest=$(awk '/manifest/{count++} count==2 {print $2; exit}' "$acf_file" | tr -d '"' | trim)
 
     if [[ -z "$current_manifest" ]]; then
         ew ">>> Failed to read current manifest GID from appmanifest file."
@@ -65,7 +66,7 @@ function check_for_update() {
     fi
 
     if [[ -f "${GAME_ROOT:-/palworld}/PLAYER_DETECTION.PID" ]]; then
-        export PLAYER_DETECTION_PID=$(<"${GAME_ROOT:-/palworld}/PLAYER_DETECTION.PID")
+        export PLAYER_DETECTION_PID=$(trim < "${GAME_ROOT:-/palworld}/PLAYER_DETECTION.PID")
     fi
 
     for ((counter=$countdown; counter>=1; counter--)); do

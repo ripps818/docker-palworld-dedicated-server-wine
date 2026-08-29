@@ -6,6 +6,7 @@ set -euo pipefail
 # Print messages in color if colors.sh is available
 if [[ -f "/includes/colors.sh" ]]; then
     source /includes/colors.sh
+    source /includes/utils.sh
 else
     # Fallback log functions
     ei() { echo -e "\e[32mINFO:\e[0m $*"; }
@@ -92,7 +93,7 @@ if [[ -n "${WORKSHOP_MOD_IDS:-}" ]]; then
     cleaned_env=$(echo "$WORKSHOP_MOD_IDS" | tr '\r\n\t' ',,,')
     IFS=',' read -ra env_ids <<< "$cleaned_env"
     for id in "${env_ids[@]}"; do
-        trimmed=$(echo "$id" | tr -d '\r\n' | xargs)
+        trimmed=$(trim "$id")
         if [[ -n "$trimmed" ]]; then
             dbgi "  Parsed env mod ID: raw=$(printf '%q' "$id") -> trimmed='$trimmed' (len=${#trimmed})"
             mod_ids+=("$trimmed")

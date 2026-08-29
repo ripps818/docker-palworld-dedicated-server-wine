@@ -4,6 +4,7 @@
 set -e
 
 source /includes/colors.sh
+source /includes/utils.sh
 source /includes/server.sh
 source /includes/webhook.sh
 
@@ -15,7 +16,7 @@ function schedule_restart() {
     ew ">>> Automatic restart was triggered..."
     autopause_disable
     if [[ -f "${GAME_ROOT}/PLAYER_DETECTION.PID" ]]; then
-        export PLAYER_DETECTION_PID=$(<"${GAME_ROOT}/PLAYER_DETECTION.PID")
+        export PLAYER_DETECTION_PID=$(trim < "${GAME_ROOT}/PLAYER_DETECTION.PID")
     fi
     if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
         send_restart_planned_notification
