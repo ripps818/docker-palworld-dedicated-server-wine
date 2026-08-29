@@ -32,38 +32,99 @@ dbgi() {
     fi
 }
 
+dbgi_hex() {
+    local label="$1"
+    local val="$2"
+    if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
+        local hex
+        hex=$(echo -n "$val" | od -An -tx1 2>/dev/null | tr -s ' ' | xargs || true)
+        echo -e "\e[36mDEBUG:\e[0m [Hex] ${label}: len=${#val} hex=[${hex}] raw=$(printf '%q' "$val")"
+    fi
+}
+
 # Locate the game's executable directory. The Mods base directory is resolved
 # later from the UE4SS package layout being installed.
 bin_dir=$(dirname "${GAME_BIN:-/palworld/Pal/Binaries/Win64/PalServer-Win64-Shipping-Cmd.exe}")
 
+if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
+    dbgi "=================================================="
+    dbgi "   DEBUG: Workshop Mod Discovery & Setup"
+    dbgi "=================================================="
+    dbgi "Current User: $(id 2>/dev/null || whoami)"
+    dbgi "Game Root: ${GAME_ROOT}"
+    dbgi "SteamCMD Path: ${STEAMCMD_PATH}"
+    dbgi "Bin Directory: ${bin_dir}"
+fi
+
 # 1. Mod ID sources: WORKSHOP_MOD_IDS (env) and /palworld/workshop-mods.txt
 mod_ids=()
 
-# Parse env var WORKSHOP_MOD_IDS (comma-separated list)
+# Parse env var WORKSHOP_MOD_IDS (comma-separated list, whitespace, or newlines)
 if [[ -n "${WORKSHOP_MOD_IDS:-}" ]]; then
-    IFS=',' read -ra env_ids <<< "$WORKSHOP_MOD_IDS"
+    if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
+        dbgi "Found WORKSHOP_MOD_IDS environment variable (byte length: ${#WORKSHOP_MOD_IDS})"
+        dbgi "Raw WORKSHOP_MOD_IDS: $(printf '%q' "$WORKSHOP_MOD_IDS")"
+        dbgi_hex "WORKSHOP_MOD_IDS" "$WORKSHOP_MOD_IDS"
+    fi
+    # Replace newlines, carriage returns, and tabs with commas to handle multi-line env formats
+    cleaned_env=$(echo "$WORKSHOP_MOD_IDS" | tr '\r\n\t' ',,,')
+    IFS=',' read -ra env_ids <<< "$cleaned_env"
     for id in "${env_ids[@]}"; do
-        trimmed=$(echo "$id" | tr -d '\r' | xargs)
+        trimmed=$(echo "$id" | tr -d '\r\n' | xargs)
         if [[ -n "$trimmed" ]]; then
+            dbgi "  Parsed env mod ID: raw=$(printf '%q' "$id") -> trimmed='$trimmed' (len=${#trimmed})"
             mod_ids+=("$trimmed")
         fi
     done
+else
+    dbgi "WORKSHOP_MOD_IDS environment variable is empty or not set."
 fi
 
 # Parse file-based IDs: /palworld/workshop-mods.txt
 mods_txt="${GAME_ROOT}/workshop-mods.txt"
 if [[ -f "$mods_txt" ]]; then
+    if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
+        file_size=$(stat -c%s "$mods_txt" 2>/dev/null || echo "unknown")
+        line_count=$(wc -l < "$mods_txt" 2>/dev/null || echo "unknown")
+        dbgi "Found ${mods_txt} (size: ${file_size} bytes, lines: ${line_count})"
+        if head -c 3 "$mods_txt" 2>/dev/null | grep -q $'\xEF\xBB\xBF'; then
+            dbgi "  [Notice] Detected UTF-8 Byte Order Mark (BOM) in ${mods_txt}"
+        fi
+    fi
+    line_num=0
     while IFS= read -r line || [[ -n "$line" ]]; do
-        # Strip carriage returns
+        line_num=$((line_num + 1))
+        raw_line="$line"
+        # Strip BOM if present on first line
+        if [[ $line_num -eq 1 ]]; then
+            line="${line#$'\xEF\xBB\xBF'}"
+        fi
+        # Strip carriage returns and newlines
         line="${line//$'\r'/}"
+        line="${line//$'\n'/}"
         # Strip comments
-        line="${line%%#*}"
+        comment_part=""
+        if [[ "$line" == *"#"* ]]; then
+            comment_part="${line#*#}"
+            line="${line%%#*}"
+        fi
         # Trim whitespace
         trimmed=$(echo "$line" | xargs)
+        if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
+            if [[ -n "$trimmed" ]]; then
+                dbgi "  Line ${line_num}: raw=$(printf '%q' "$raw_line") -> trimmed='$trimmed' (len=${#trimmed})"
+            elif [[ -n "$comment_part" ]]; then
+                dbgi "  Line ${line_num}: comment-only line (#${comment_part})"
+            else
+                dbgi "  Line ${line_num}: blank line"
+            fi
+        fi
         if [[ -n "$trimmed" ]]; then
             mod_ids+=("$trimmed")
         fi
     done < "$mods_txt"
+else
+    dbgi "File ${mods_txt} does not exist."
 fi
 
 # Deduplicate IDs
@@ -76,7 +137,14 @@ for id in "${mod_ids[@]}"; do
     fi
 done
 
-dbgi "Deduplicated Workshop Mod IDs to install/update: ${unique_ids[*]}"
+if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
+    dbgi "Total raw IDs parsed: ${#mod_ids[@]}, Unique deduplicated IDs: ${#unique_ids[@]}"
+    quoted_ids=()
+    for uid in "${unique_ids[@]}"; do
+        quoted_ids+=("\"$uid\"")
+    done
+    dbgi "Deduplicated Workshop Mod IDs array: [ ${quoted_ids[*]:-} ]"
+fi
 
 if [[ ${#unique_ids[@]} -eq 0 ]]; then
     ei "No Steam Workshop Mod IDs specified."
@@ -90,10 +158,13 @@ if [[ ${#unique_ids[@]} -gt 0 ]]; then
     if [[ -n "${STEAM_USERNAME:-}" ]]; then
         if [[ -n "${STEAM_PASSWORD:-}" ]]; then
             steamcmd_login=("${STEAM_USERNAME}" "${STEAM_PASSWORD}")
+            dbgi "SteamCMD Authentication: User='${STEAM_USERNAME}', Password='***'"
         else
             steamcmd_login=("${STEAM_USERNAME}")
+            dbgi "SteamCMD Authentication: User='${STEAM_USERNAME}' (no password / cached token)"
         fi
     else
+        dbgi "SteamCMD Authentication: anonymous"
         ew "STEAM_USERNAME is not set. Downloading Palworld (AppID 1623730) Workshop mods with 'anonymous' login may fail. If downloads fail, specify STEAM_USERNAME."
     fi
 
@@ -112,8 +183,26 @@ if [[ ${#unique_ids[@]} -gt 0 ]]; then
 
     # Run steamcmd, warn on failure but keep going
     ei "Running steamcmd..."
-    if ! steamcmd "${steamcmd_args[@]}"; then
-        ew "steamcmd reported errors during workshop download. If item downloads failed, verify STEAM_USERNAME and Steam login credentials."
+    set +e
+    steamcmd "${steamcmd_args[@]}"
+    steamcmd_exit_code=$?
+    set -e
+
+    if [[ $steamcmd_exit_code -ne 0 ]]; then
+        ew "steamcmd reported errors (exit code: $steamcmd_exit_code) during workshop download. If item downloads failed, verify STEAM_USERNAME and Steam login credentials."
+    else
+        dbgi "steamcmd completed successfully (exit code: 0)."
+    fi
+
+    # Inspect steamcmd internal logs if debug is enabled
+    if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
+        for log_candidate in "/home/steam/Steam/logs/workshop_log.txt" "/home/steam/Steam/logs/stderr.txt" "/home/steam/.steam/logs/workshop_log.txt"; do
+            if [[ -f "$log_candidate" ]]; then
+                dbgi "--- Tail of Steam log: $log_candidate ---"
+                tail -n 20 "$log_candidate" 2>/dev/null || true
+                dbgi "----------------------------------------"
+            fi
+        done
     fi
 fi
 
@@ -140,7 +229,8 @@ if [[ "$server_running" == "true" ]]; then
             for workshop_root in \
                 "/home/steam/Steam/steamapps/workshop/content/1623730" \
                 "/home/steam/.steam/steam/steamapps/workshop/content/1623730" \
-                "/home/steam/.local/share/Steam/steamapps/workshop/content/1623730"; do
+                "/home/steam/.local/share/Steam/steamapps/workshop/content/1623730" \
+                "/home/steam/steamapps/workshop/content/1623730"; do
                 if [[ -d "${workshop_root}/${id}" ]]; then
                     src_dir="${workshop_root}/${id}"
                     break
@@ -912,23 +1002,55 @@ chown steam:steam "$workshop_dir" 2>/dev/null || true
 
 declare -A workshop_folder_mappings
 
+if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
+    dbgi "=== Workshop Download Roots Inspection ==="
+    for ws_root in \
+        "/home/steam/Steam/steamapps/workshop/content/1623730" \
+        "/home/steam/.steam/steam/steamapps/workshop/content/1623730" \
+        "/home/steam/.local/share/Steam/steamapps/workshop/content/1623730" \
+        "/home/steam/steamapps/workshop/content/1623730"; do
+        if [[ -d "$ws_root" ]]; then
+            dbgi "  Workshop Root [EXISTS]: $ws_root"
+            dbgi "    Contents: $(ls -1 "$ws_root" 2>/dev/null | tr '\n' ' ')"
+        else
+            dbgi "  Workshop Root [DOES NOT EXIST]: $ws_root"
+        fi
+    done
+    dbgi "=========================================="
+fi
+
 for id in "${unique_ids[@]}"; do
-    dbgi "Processing Workshop Mod ID: $id"
+    dbgi "Processing Workshop Mod ID: '$id' (escaped: $(printf '%q' "$id"), len: ${#id})"
     # Try different potential SteamCMD download paths to ensure compatibility
     primary_src_dir="/home/steam/Steam/steamapps/workshop/content/1623730/${id}"
     src_dir=""
     for workshop_root in \
         "/home/steam/Steam/steamapps/workshop/content/1623730" \
         "/home/steam/.steam/steam/steamapps/workshop/content/1623730" \
-        "/home/steam/.local/share/Steam/steamapps/workshop/content/1623730"; do
-        dbgi "  Checking path: ${workshop_root}/${id}"
-        if [[ -d "${workshop_root}/${id}" ]]; then
-            src_dir="${workshop_root}/${id}"
+        "/home/steam/.local/share/Steam/steamapps/workshop/content/1623730" \
+        "/home/steam/steamapps/workshop/content/1623730"; do
+        candidate_path="${workshop_root}/${id}"
+        if [[ -d "$candidate_path" ]]; then
+            dbgi "  Checking path: '$candidate_path' -> [FOUND]"
+            src_dir="$candidate_path"
             break
+        else
+            dbgi "  Checking path: '$candidate_path' -> [NOT FOUND]"
         fi
     done
     
     if [[ -n "$src_dir" && -d "$src_dir" ]]; then
+        if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
+            dbgi "  Listing contents of $src_dir:"
+            ls -la "$src_dir" 2>/dev/null || true
+            if [[ -f "${src_dir}/Info.json" ]]; then
+                dbgi "  Raw Info.json: $(cat "${src_dir}/Info.json" 2>/dev/null || true)"
+            fi
+            if [[ -f "${src_dir}/InstallRule.json" ]]; then
+                dbgi "  Raw InstallRule.json: $(cat "${src_dir}/InstallRule.json" 2>/dev/null || true)"
+            fi
+        fi
+
         pkg_name=$(jq -r '.PackageName // empty' "${src_dir}/Info.json" 2>/dev/null || true)
         if [[ -z "$pkg_name" || "$pkg_name" == "null" ]]; then
             folder_name="$id"
@@ -945,6 +1067,21 @@ for id in "${unique_ids[@]}"; do
         deploy_mod "$src_dir" "$dest_dir" "$pkg_name" "$id"
     else
         ew "Warning: Workshop mod $id was not found at $primary_src_dir. Download might have failed."
+        if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
+            dbgi "  Diagnostics for missing Mod $id:"
+            dbgi "    Candidate paths tested:"
+            for workshop_root in \
+                "/home/steam/Steam/steamapps/workshop/content/1623730" \
+                "/home/steam/.steam/steam/steamapps/workshop/content/1623730" \
+                "/home/steam/.local/share/Steam/steamapps/workshop/content/1623730" \
+                "/home/steam/steamapps/workshop/content/1623730"; do
+                if [[ -d "$workshop_root" ]]; then
+                    dbgi "      Directory $workshop_root exists and contains: $(ls -1 "$workshop_root" 2>/dev/null | tr '\n' ' ')"
+                else
+                    dbgi "      Directory $workshop_root does not exist"
+                fi
+            done
+        fi
     fi
 done
 
@@ -1206,14 +1343,26 @@ if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true
     dbgi "=================================================="
     dbgi "   DEBUG: Post-Deployment Directory Inspection"
     dbgi "=================================================="
+    dbgi "--> Game Binaries Directory (${bin_dir}):"
+    ls -la "$bin_dir" 2>/dev/null || true
     dbgi "--> Raw Workshop Staging (${workshop_dir}):"
     ls -laR "$workshop_dir" 2>/dev/null || true
+    dbgi "--> Native Mods Directory (${native_mods_dir}):"
+    ls -laR "$native_mods_dir" 2>/dev/null || true
     dbgi "--> UE4SS Mods Directory (${mods_base_dir}):"
     ls -laR "$mods_base_dir" 2>/dev/null || true
     dbgi "--> ~mods Directory (${GAME_ROOT}/Pal/Content/Paks/~mods):"
     ls -laR "${GAME_ROOT}/Pal/Content/Paks/~mods" 2>/dev/null || true
     dbgi "--> LogicMods Directory (${GAME_ROOT}/Pal/Content/Paks/LogicMods):"
     ls -laR "${GAME_ROOT}/Pal/Content/Paks/LogicMods" 2>/dev/null || true
+    if [[ -f "${mods_base_dir}/PalModSettings.ini" ]]; then
+        dbgi "--> PalModSettings.ini Content:"
+        cat "${mods_base_dir}/PalModSettings.ini" 2>/dev/null || true
+    fi
+    if [[ -f "${mods_base_dir}/mods.txt" ]]; then
+        dbgi "--> mods.txt Content:"
+        cat "${mods_base_dir}/mods.txt" 2>/dev/null || true
+    fi
     dbgi "=================================================="
 fi
 
