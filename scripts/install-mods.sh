@@ -43,7 +43,7 @@ mod_ids=()
 if [[ -n "${WORKSHOP_MOD_IDS:-}" ]]; then
     IFS=',' read -ra env_ids <<< "$WORKSHOP_MOD_IDS"
     for id in "${env_ids[@]}"; do
-        trimmed=$(echo "$id" | xargs)
+        trimmed=$(echo "$id" | tr -d '\r' | xargs)
         if [[ -n "$trimmed" ]]; then
             mod_ids+=("$trimmed")
         fi
@@ -54,6 +54,8 @@ fi
 mods_txt="${GAME_ROOT}/workshop-mods.txt"
 if [[ -f "$mods_txt" ]]; then
     while IFS= read -r line || [[ -n "$line" ]]; do
+        # Strip carriage returns
+        line="${line//$'\r'/}"
         # Strip comments
         line="${line%%#*}"
         # Trim whitespace
@@ -913,18 +915,20 @@ declare -A workshop_folder_mappings
 for id in "${unique_ids[@]}"; do
     dbgi "Processing Workshop Mod ID: $id"
     # Try different potential SteamCMD download paths to ensure compatibility
-    src_dir="/home/steam/Steam/steamapps/workshop/content/1623730/${id}"
-    dbgi "  Checking path: $src_dir"
-    if [[ ! -d "$src_dir" ]]; then
-        src_dir="/home/steam/.steam/steam/steamapps/workshop/content/1623730/${id}"
-        dbgi "  Checking path: $src_dir"
-    fi
-    if [[ ! -d "$src_dir" ]]; then
-        src_dir="/home/steam/.local/share/Steam/steamapps/workshop/content/1623730/${id}"
-        dbgi "  Checking path: $src_dir"
-    fi
+    primary_src_dir="/home/steam/Steam/steamapps/workshop/content/1623730/${id}"
+    src_dir=""
+    for workshop_root in \
+        "/home/steam/Steam/steamapps/workshop/content/1623730" \
+        "/home/steam/.steam/steam/steamapps/workshop/content/1623730" \
+        "/home/steam/.local/share/Steam/steamapps/workshop/content/1623730"; do
+        dbgi "  Checking path: ${workshop_root}/${id}"
+        if [[ -d "${workshop_root}/${id}" ]]; then
+            src_dir="${workshop_root}/${id}"
+            break
+        fi
+    done
     
-    if [[ -d "$src_dir" ]]; then
+    if [[ -n "$src_dir" && -d "$src_dir" ]]; then
         pkg_name=$(jq -r '.PackageName // empty' "${src_dir}/Info.json" 2>/dev/null || true)
         if [[ -z "$pkg_name" || "$pkg_name" == "null" ]]; then
             folder_name="$id"
@@ -940,7 +944,7 @@ for id in "${unique_ids[@]}"; do
         ei "Deploying Workshop mod $id ($pkg_name -> ${folder_name})..."
         deploy_mod "$src_dir" "$dest_dir" "$pkg_name" "$id"
     else
-        ew "Warning: Workshop mod $id was not found at $src_dir. Download might have failed."
+        ew "Warning: Workshop mod $id was not found at $primary_src_dir. Download might have failed."
     fi
 done
 
@@ -1006,6 +1010,7 @@ if [[ -f "$ini_file" ]]; then
     new_ini=$(mktemp)
     in_active_list=false
     while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line//$'\r'/}"
         if [[ "$line" =~ ^\[ActiveModList\] ]]; then
             in_active_list=true
             continue
@@ -1062,6 +1067,7 @@ if [[ -f "$mods_txt_file" ]]; then
     default_ue4ss_mods=("BPModLoaderMod" "CheatManagerEnablerMod" "ConsoleCommandsMod" "ConsoleEnablerMod" "BPML_GenericFunctions" "Keybinds" "CustomBus")
     
     while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line//$'\r'/}"
         # Parse the mod name (trimming whitespace and colon)
         # e.g., "ConsoleEnablerMod : 0" -> "ConsoleEnablerMod"
         if [[ "$line" =~ ^[[:space:]]*([^[:space:]:]+)[[:space:]]*:[[:space:]]*(0|1) ]]; then

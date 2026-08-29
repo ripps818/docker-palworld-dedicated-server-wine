@@ -8,18 +8,18 @@ settings_amount=0
 function get_admin_password() {
     local settings_file="${GAME_SETTINGS_FILE:-/palworld/Pal/Saved/Config/WindowsServer/PalWorldSettings.ini}"
     if [[ -f "$settings_file" ]] && grep -qE 'AdminPassword="[^"]*"' "$settings_file"; then
-        grep -oE 'AdminPassword="[^"]*"' "$settings_file" | head -n1 | cut -d'"' -f2
+        grep -oE 'AdminPassword="[^"]*"' "$settings_file" | head -n1 | cut -d'"' -f2 | tr -d '\r'
     else
-        echo "${ADMIN_PASSWORD:-}"
+        echo "${ADMIN_PASSWORD:-}" | tr -d '\r'
     fi
 }
 
 function get_server_password() {
     local settings_file="${GAME_SETTINGS_FILE:-/palworld/Pal/Saved/Config/WindowsServer/PalWorldSettings.ini}"
     if [[ -f "$settings_file" ]] && grep -qE 'ServerPassword="[^"]*"' "$settings_file"; then
-        grep -oE 'ServerPassword="[^"]*"' "$settings_file" | head -n1 | cut -d'"' -f2
+        grep -oE 'ServerPassword="[^"]*"' "$settings_file" | head -n1 | cut -d'"' -f2 | tr -d '\r'
     else
-        echo "${SERVER_PASSWORD:-}"
+        echo "${SERVER_PASSWORD:-}" | tr -d '\r'
     fi
 }
 

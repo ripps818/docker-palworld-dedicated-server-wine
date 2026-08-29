@@ -37,7 +37,7 @@ function check_for_update() {
         exit 0
     fi
 
-    current_manifest=$(awk '/manifest/{count++} count==2 {print $2; exit}' "$acf_file" | tr -d '"')
+    current_manifest=$(awk '/manifest/{count++} count==2 {print $2; exit}' "$acf_file" | tr -d '"\r')
 
     if [[ -z "$current_manifest" ]]; then
         ew ">>> Failed to read current manifest GID from appmanifest file."
