@@ -3,22 +3,9 @@
 
 set -euo pipefail
 
-# Print messages in color if colors.sh is available
-if [[ -f "/includes/colors.sh" ]]; then
-    source /includes/colors.sh
-else
-    # Fallback log functions
-    ei() { echo -e "\e[32mINFO:\e[0m $*"; }
-    ew() { echo -e "\e[33mWARN:\e[0m $*"; }
-    ee() { echo -e "\e[31mERROR:\e[0m $*"; }
-    es() { echo -e "\e[32mSUCCESS:\e[0m $*"; }
-    e() { echo "$*"; }
-fi
-
-# Load restapi.sh if it exists (for check_is_server_empty, etc.)
-if [[ -f "/includes/restapi.sh" ]]; then
-    source /includes/restapi.sh
-fi
+source /includes/colors.sh
+source /includes/utils.sh
+source /includes/restapi.sh
 
 GAME_ROOT="${GAME_ROOT:-/palworld}"
 STEAMCMD_PATH="${STEAMCMD_PATH:-/home/steam/steamcmd}"
@@ -32,36 +19,118 @@ dbgi() {
     fi
 }
 
+dbgi_hex() {
+    local label="$1"
+    local val="$2"
+    if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
+        local hex
+        hex=$(echo -n "$val" | od -An -tx1 2>/dev/null | tr -s ' ' | xargs || true)
+        echo -e "\e[36mDEBUG:\e[0m [Hex] ${label}: len=${#val} hex=[${hex}] raw=$(printf '%q' "$val")"
+    fi
+}
+
 # Locate the game's executable directory. The Mods base directory is resolved
 # later from the UE4SS package layout being installed.
 bin_dir=$(dirname "${GAME_BIN:-/palworld/Pal/Binaries/Win64/PalServer-Win64-Shipping-Cmd.exe}")
 
+# safe_mkdir - Creates a directory path reliably, retrying up to 3 times to work around
+# filesystem synchronization latencies or mount race conditions (e.g. Docker Desktop
+# VMM/Hyper-V/virtiofs/9p cross-filesystem mounts between Windows host and Linux container).
+#
+# Arguments:
+#   $1 - Absolute path of directory to create
+# Returns:
+#   0 on success or after final mkdir attempt
+safe_mkdir() {
+    local dir="$1"
+    if [[ -z "$dir" ]]; then return 0; fi
+    local retries=3
+    while [[ $retries -gt 0 ]]; do
+        if mkdir -p "$dir" 2>/dev/null; then
+            return 0
+        fi
+        sleep 0.1
+        ((retries--))
+    done
+    mkdir -p "$dir"
+}
+
+if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
+    dbgi "=================================================="
+    dbgi "   DEBUG: Workshop Mod Discovery & Setup"
+    dbgi "=================================================="
+    dbgi "Current User: $(id 2>/dev/null || whoami)"
+    dbgi "Game Root: ${GAME_ROOT}"
+    dbgi "SteamCMD Path: ${STEAMCMD_PATH}"
+    dbgi "Bin Directory: ${bin_dir}"
+fi
+
 # 1. Mod ID sources: WORKSHOP_MOD_IDS (env) and /palworld/workshop-mods.txt
 mod_ids=()
 
-# Parse env var WORKSHOP_MOD_IDS (comma-separated list)
+# Parse env var WORKSHOP_MOD_IDS (comma-separated list, whitespace, or newlines)
 if [[ -n "${WORKSHOP_MOD_IDS:-}" ]]; then
-    IFS=',' read -ra env_ids <<< "$WORKSHOP_MOD_IDS"
+    if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
+        dbgi "Found WORKSHOP_MOD_IDS environment variable (byte length: ${#WORKSHOP_MOD_IDS})"
+        dbgi "Raw WORKSHOP_MOD_IDS: $(printf '%q' "$WORKSHOP_MOD_IDS")"
+        dbgi_hex "WORKSHOP_MOD_IDS" "$WORKSHOP_MOD_IDS"
+    fi
+    # Replace newlines, carriage returns, and tabs with commas to handle multi-line env formats
+    cleaned_env=$(echo "$WORKSHOP_MOD_IDS" | tr '\r\n\t' ',,,')
+    IFS=',' read -ra env_ids <<< "$cleaned_env"
     for id in "${env_ids[@]}"; do
-        trimmed=$(echo "$id" | xargs)
+        trimmed=$(trim "$id")
         if [[ -n "$trimmed" ]]; then
+            dbgi "  Parsed env mod ID: raw=$(printf '%q' "$id") -> trimmed='$trimmed' (len=${#trimmed})"
             mod_ids+=("$trimmed")
         fi
     done
+else
+    dbgi "WORKSHOP_MOD_IDS environment variable is empty or not set."
 fi
 
 # Parse file-based IDs: /palworld/workshop-mods.txt
 mods_txt="${GAME_ROOT}/workshop-mods.txt"
 if [[ -f "$mods_txt" ]]; then
+    if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
+        file_size=$(stat -c%s "$mods_txt" 2>/dev/null || echo "unknown")
+        line_count=$(wc -l < "$mods_txt" 2>/dev/null || echo "unknown")
+        dbgi "Found ${mods_txt} (size: ${file_size} bytes, lines: ${line_count})"
+        if head -c 3 "$mods_txt" 2>/dev/null | grep -q $'\xEF\xBB\xBF'; then
+            dbgi "  [Notice] Detected UTF-8 Byte Order Mark (BOM) in ${mods_txt}"
+        fi
+    fi
+    line_num=0
     while IFS= read -r line || [[ -n "$line" ]]; do
+        line_num=$((line_num + 1))
+        raw_line="$line"
+        # Strip BOM if present on first line
+        if [[ $line_num -eq 1 ]]; then
+            line="${line#$'\xEF\xBB\xBF'}"
+        fi
         # Strip comments
-        line="${line%%#*}"
-        # Trim whitespace
-        trimmed=$(echo "$line" | xargs)
+        comment_part=""
+        if [[ "$line" == *"#"* ]]; then
+            comment_part="${line#*#}"
+            line="${line%%#*}"
+        fi
+        # Sanitize and trim whitespace / CRLF
+        trimmed=$(trim "$line")
+        if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
+            if [[ -n "$trimmed" ]]; then
+                dbgi "  Line ${line_num}: raw=$(printf '%q' "$raw_line") -> trimmed='$trimmed' (len=${#trimmed})"
+            elif [[ -n "$comment_part" ]]; then
+                dbgi "  Line ${line_num}: comment-only line (#${comment_part})"
+            else
+                dbgi "  Line ${line_num}: blank line"
+            fi
+        fi
         if [[ -n "$trimmed" ]]; then
             mod_ids+=("$trimmed")
         fi
     done < "$mods_txt"
+else
+    dbgi "File ${mods_txt} does not exist."
 fi
 
 # Deduplicate IDs
@@ -74,7 +143,99 @@ for id in "${mod_ids[@]}"; do
     fi
 done
 
-dbgi "Deduplicated Workshop Mod IDs to install/update: ${unique_ids[*]}"
+if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
+    dbgi "Total raw IDs parsed: ${#mod_ids[@]}, Unique deduplicated IDs: ${#unique_ids[@]}"
+    quoted_ids=()
+    for uid in "${unique_ids[@]}"; do
+        quoted_ids+=("\"$uid\"")
+    done
+    dbgi "Deduplicated Workshop Mod IDs to install/update: ${unique_ids[*]}"
+fi
+
+# sort_mods_by_dependencies - Performs topological dependency sorting on Workshop mod IDs.
+# Inspects each mod's Info.json to read the 'Dependencies' array (supporting string names
+# or object definitions), mapping package names to mod IDs.
+#
+# Reorders the mod array in-place so that prerequisite framework/base mods (e.g. PalSchema,
+# UE4SS, or core libraries) are installed BEFORE dependent mods that rely on their
+# directory structures.
+#
+# Arguments:
+#   $1 - Name of nameref variable pointing to the array of unique Workshop mod IDs
+sort_mods_by_dependencies() {
+    local -n ids_ref=$1
+    local -A mod_pkg_to_id
+    local -A mod_id_to_pkg
+    local -A mod_deps
+
+    for id in "${ids_ref[@]}"; do
+        local src_dir=""
+        for workshop_root in \
+            "/home/steam/Steam/steamapps/workshop/content/1623730" \
+            "/home/steam/.steam/steam/steamapps/workshop/content/1623730" \
+            "/home/steam/.local/share/Steam/steamapps/workshop/content/1623730"; do
+            if [[ -d "${workshop_root}/${id}" ]]; then
+                src_dir="${workshop_root}/${id}"
+                break
+            fi
+        done
+
+        if [[ -n "$src_dir" && -f "${src_dir}/Info.json" ]]; then
+            local pkg_name
+            pkg_name=$(jq -r '.PackageName // empty' "${src_dir}/Info.json" 2>/dev/null || true)
+            if [[ -z "$pkg_name" || "$pkg_name" == "null" ]]; then
+                pkg_name="$id"
+            fi
+            mod_pkg_to_id["$pkg_name"]="$id"
+            mod_id_to_pkg["$id"]="$pkg_name"
+
+            local deps
+            deps=$(jq -r '.Dependencies[]? | if type == "object" then (.PackageName // .Name // .id // empty) else . end' "${src_dir}/Info.json" 2>/dev/null || true)
+            mod_deps["$id"]="$deps"
+        else
+            mod_id_to_pkg["$id"]="$id"
+            mod_deps["$id"]=""
+        fi
+    done
+
+    local sorted_ids=()
+    local -A visited
+    local -A visiting
+
+    visit_mod() {
+        local id="$1"
+        if [[ -n "${visiting[$id]:-}" ]]; then
+            return 0
+        fi
+        if [[ -z "${visited[$id]:-}" ]]; then
+            visiting["$id"]=1
+            local deps="${mod_deps[$id]:-}"
+            if [[ -n "$deps" ]]; then
+                while IFS= read -r dep; do
+                    [[ -z "$dep" ]] && continue
+                    local dep_id="${mod_pkg_to_id[$dep]:-$dep}"
+                    if [[ -n "${mod_id_to_pkg[$dep_id]:-}" ]]; then
+                        visit_mod "$dep_id"
+                    fi
+                done <<< "$deps"
+            fi
+            unset visiting["$id"]
+            visited["$id"]=1
+            sorted_ids+=("$id")
+        fi
+    }
+
+    for id in "${ids_ref[@]}"; do
+        visit_mod "$id"
+    done
+
+    ids_ref=("${sorted_ids[@]}")
+}
+
+if [[ ${#unique_ids[@]} -gt 0 ]]; then
+    sort_mods_by_dependencies unique_ids
+    dbgi "Dependency-sorted Workshop Mod IDs: ${unique_ids[*]}"
+fi
 
 if [[ ${#unique_ids[@]} -eq 0 ]]; then
     ei "No Steam Workshop Mod IDs specified."
@@ -88,10 +249,13 @@ if [[ ${#unique_ids[@]} -gt 0 ]]; then
     if [[ -n "${STEAM_USERNAME:-}" ]]; then
         if [[ -n "${STEAM_PASSWORD:-}" ]]; then
             steamcmd_login=("${STEAM_USERNAME}" "${STEAM_PASSWORD}")
+            dbgi "SteamCMD Authentication: User='${STEAM_USERNAME}', Password='***'"
         else
             steamcmd_login=("${STEAM_USERNAME}")
+            dbgi "SteamCMD Authentication: User='${STEAM_USERNAME}' (no password / cached token)"
         fi
     else
+        dbgi "SteamCMD Authentication: anonymous"
         ew "STEAM_USERNAME is not set. Downloading Palworld (AppID 1623730) Workshop mods with 'anonymous' login may fail. If downloads fail, specify STEAM_USERNAME."
     fi
 
@@ -110,8 +274,26 @@ if [[ ${#unique_ids[@]} -gt 0 ]]; then
 
     # Run steamcmd, warn on failure but keep going
     ei "Running steamcmd..."
-    if ! steamcmd "${steamcmd_args[@]}"; then
-        ew "steamcmd reported errors during workshop download. If item downloads failed, verify STEAM_USERNAME and Steam login credentials."
+    set +e
+    steamcmd "${steamcmd_args[@]}"
+    steamcmd_exit_code=$?
+    set -e
+
+    if [[ $steamcmd_exit_code -ne 0 ]]; then
+        ew "steamcmd reported errors (exit code: $steamcmd_exit_code) during workshop download. If item downloads failed, verify STEAM_USERNAME and Steam login credentials."
+    else
+        dbgi "steamcmd completed successfully (exit code: 0)."
+    fi
+
+    # Inspect steamcmd internal logs if debug is enabled
+    if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
+        for log_candidate in "/home/steam/Steam/logs/workshop_log.txt" "/home/steam/Steam/logs/stderr.txt" "/home/steam/.steam/logs/workshop_log.txt"; do
+            if [[ -f "$log_candidate" ]]; then
+                dbgi "--- Tail of Steam log: $log_candidate ---"
+                tail -n 20 "$log_candidate" 2>/dev/null || true
+                dbgi "----------------------------------------"
+            fi
+        done
     fi
 fi
 
@@ -138,7 +320,8 @@ if [[ "$server_running" == "true" ]]; then
             for workshop_root in \
                 "/home/steam/Steam/steamapps/workshop/content/1623730" \
                 "/home/steam/.steam/steam/steamapps/workshop/content/1623730" \
-                "/home/steam/.local/share/Steam/steamapps/workshop/content/1623730"; do
+                "/home/steam/.local/share/Steam/steamapps/workshop/content/1623730" \
+                "/home/steam/steamapps/workshop/content/1623730"; do
                 if [[ -d "${workshop_root}/${id}" ]]; then
                     src_dir="${workshop_root}/${id}"
                     break
@@ -449,6 +632,13 @@ else
     mods_base_dir="${bin_dir}/Mods"
 fi
 dbgi "Resolved UE4SS Mods layout '${ue4ss_mods_layout}' to ${mods_base_dir}"
+
+# Ensure base destinations exist before clean up or deployment to avoid mkdir race conditions
+safe_mkdir "$bin_dir"
+safe_mkdir "$mods_base_dir"
+safe_mkdir "${mods_base_dir}/PalSchema/mods"
+safe_mkdir "${GAME_ROOT}/Pal/Content/Paks/~mods"
+safe_mkdir "${GAME_ROOT}/Pal/Content/Paks/LogicMods"
 if [[ -f "$state_file" ]]; then
     ei "Cleaning up previously deployed files from state..."
     
@@ -592,18 +782,26 @@ deploy_mod_auto_discover() {
     fi
 
     if [[ -f "${dest_dir}/dwmapi.dll" ]]; then
-        ei "  Found dwmapi.dll. Deploying..."
-        cp -f "${dest_dir}/dwmapi.dll" "${bin_dir}/"
-        chown steam:steam "${bin_dir}/dwmapi.dll" 2>/dev/null || true
-        dbgi "  [DLL] Absolute destination: ${bin_dir}/dwmapi.dll"
-        deployed_ue4ss_files+=("dwmapi.dll")
+        if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]]; then
+            ei "  Found dwmapi.dll. Preserving UE4SS Experimental (skipping Workshop dwmapi.dll)..."
+        else
+            ei "  Found dwmapi.dll. Deploying..."
+            cp -f "${dest_dir}/dwmapi.dll" "${bin_dir}/"
+            chown steam:steam "${bin_dir}/dwmapi.dll" 2>/dev/null || true
+            dbgi "  [DLL] Absolute destination: ${bin_dir}/dwmapi.dll"
+            deployed_ue4ss_files+=("dwmapi.dll")
+        fi
     elif [[ -f "${dest_dir}/UE4SS.dll" ]]; then
-        ei "  Found UE4SS.dll. Deploying as dwmapi.dll..."
-        cp -f "${dest_dir}/UE4SS.dll" "${bin_dir}/dwmapi.dll"
-        rm -f "${bin_dir}/UE4SS.dll"
-        chown steam:steam "${bin_dir}/dwmapi.dll" 2>/dev/null || true
-        dbgi "  [DLL] Absolute destination: ${bin_dir}/dwmapi.dll"
-        deployed_ue4ss_files+=("dwmapi.dll")
+        if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]]; then
+            ei "  Found UE4SS.dll. Preserving UE4SS Experimental (skipping Workshop UE4SS.dll)..."
+        else
+            ei "  Found UE4SS.dll. Deploying as dwmapi.dll..."
+            cp -f "${dest_dir}/UE4SS.dll" "${bin_dir}/dwmapi.dll"
+            rm -f "${bin_dir}/UE4SS.dll"
+            chown steam:steam "${bin_dir}/dwmapi.dll" 2>/dev/null || true
+            dbgi "  [DLL] Absolute destination: ${bin_dir}/dwmapi.dll"
+            deployed_ue4ss_files+=("dwmapi.dll")
+        fi
     fi
 
     # Check for other dlls or settings
@@ -809,7 +1007,8 @@ deploy_mod_via_rules() {
                 elif [[ "$type" == "PalSchema" ]]; then
                     local dest="${mods_base_dir}/PalSchema/mods/${pkg_name}"
                     ei "    [PalSchema] Deploying files from $target to $dest..."
-                    mkdir -p "$dest"
+                    safe_mkdir "${mods_base_dir}/PalSchema/mods"
+                    safe_mkdir "$dest"
                     if [[ -d "$target_path" ]]; then
                         cp -r "$target_path"/. "$dest"/
                     else
@@ -819,47 +1018,52 @@ deploy_mod_via_rules() {
                     dbgi "    [PalSchema Rule] Absolute destination: ${dest}"
                     deployed_palschema_mods+=("$pkg_name")
                 elif [[ "$type" == "UE4SS" ]]; then
-                    ei "    [UE4SS] Deploying framework files from $target to $bin_dir..."
-                    if [[ -d "$target_path" ]]; then
-                        # Check for the modern UE4SS v3+ layout 'ue4ss' folder
-                        if [[ -d "${target_path}/ue4ss" ]]; then
-                            ei "    [UE4SS] Found ue4ss folder. Deploying..."
-                            cp -r "${target_path}/ue4ss" "${bin_dir}/"
-                            chown -R steam:steam "${bin_dir}/ue4ss" 2>/dev/null || true
-                            dbgi "    [UE4SS Rule] Absolute destination: ${bin_dir}/ue4ss"
-                            deployed_ue4ss_files+=("ue4ss")
-                        fi
-                        # Copy dwmapi.dll, UE4SS.dll, UE4SS-settings.ini, etc.
-                        if [[ -f "${target_path}/dwmapi.dll" ]]; then
-                            cp -f "${target_path}/dwmapi.dll" "${bin_dir}/"
-                            chown steam:steam "${bin_dir}/dwmapi.dll" 2>/dev/null || true
-                            dbgi "    [UE4SS Rule] Absolute destination: ${bin_dir}/dwmapi.dll"
-                            deployed_ue4ss_files+=("dwmapi.dll")
-                        elif [[ -f "${target_path}/UE4SS.dll" ]]; then
-                            cp -f "${target_path}/UE4SS.dll" "${bin_dir}/dwmapi.dll"
-                            rm -f "${bin_dir}/UE4SS.dll"
-                            chown steam:steam "${bin_dir}/dwmapi.dll" 2>/dev/null || true
-                            dbgi "    [UE4SS Rule] Absolute destination: ${bin_dir}/dwmapi.dll"
-                            deployed_ue4ss_files+=("dwmapi.dll")
-                        fi
-                        for file in "UE4SS-settings.ini" "Vindsent.dll" "MemberVariableLayout.ini"; do
-                            if [[ -f "${target_path}/${file}" ]]; then
-                                cp -f "${target_path}/${file}" "${bin_dir}/"
-                                chown steam:steam "${bin_dir}/${file}" 2>/dev/null || true
-                                dbgi "    [UE4SS Rule] Absolute destination: ${bin_dir}/${file}"
-                                deployed_ue4ss_files+=("$file")
+                    if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]]; then
+                        ei "    [UE4SS] INSTALL_UE4SS_EXPERIMENTAL is enabled. Preserving experimental UE4SS binaries (skipping Workshop UE4SS framework rule)..."
+                    else
+                        ei "    [UE4SS] Deploying framework files from $target to $bin_dir..."
+                        if [[ -d "$target_path" ]]; then
+                            # Check for the modern UE4SS v3+ layout 'ue4ss' folder
+                            if [[ -d "${target_path}/ue4ss" ]]; then
+                                ei "    [UE4SS] Found ue4ss folder. Deploying..."
+                                cp -r "${target_path}/ue4ss" "${bin_dir}/"
+                                chown -R steam:steam "${bin_dir}/ue4ss" 2>/dev/null || true
+                                dbgi "    [UE4SS Rule] Absolute destination: ${bin_dir}/ue4ss"
+                                deployed_ue4ss_files+=("ue4ss")
                             fi
-                        done
-                        # Copy Mods directory if exists
-                        if [[ -d "${target_path}/Mods" ]]; then
-                            cp -r "${target_path}/Mods"/. "${mods_base_dir}"/
-                            chown -R steam:steam "${mods_base_dir}" 2>/dev/null || true
-                            # Track deployed Lua mod directories for state cleanup
-                            for d in "${target_path}/Mods"/*; do
-                                if [[ -d "$d" ]]; then
-                                    deployed_lua_mods+=($(basename "$d"))
+                            # Copy dwmapi.dll, UE4SS.dll, UE4SS-settings.ini, etc.
+                            if [[ -f "${target_path}/dwmapi.dll" ]]; then
+                                cp -f "${target_path}/dwmapi.dll" "${bin_dir}/"
+                                chown steam:steam "${bin_dir}/dwmapi.dll" 2>/dev/null || true
+                                dbgi "    [UE4SS Rule] Absolute destination: ${bin_dir}/dwmapi.dll"
+                                deployed_ue4ss_files+=("dwmapi.dll")
+                            elif [[ -f "${target_path}/UE4SS.dll" ]]; then
+                                cp -f "${target_path}/UE4SS.dll" "${bin_dir}/dwmapi.dll"
+                                rm -f "${bin_dir}/UE4SS.dll"
+                                chown steam:steam "${bin_dir}/dwmapi.dll" 2>/dev/null || true
+                                dbgi "    [UE4SS Rule] Absolute destination: ${bin_dir}/dwmapi.dll"
+                                deployed_ue4ss_files+=("dwmapi.dll")
+                            fi
+                            for file in "UE4SS-settings.ini" "Vindsent.dll" "MemberVariableLayout.ini"; do
+                                if [[ -f "${target_path}/${file}" ]]; then
+                                    cp -f "${target_path}/${file}" "${bin_dir}/"
+                                    chown steam:steam "${bin_dir}/${file}" 2>/dev/null || true
+                                    dbgi "    [UE4SS Rule] Absolute destination: ${bin_dir}/${file}"
+                                    deployed_ue4ss_files+=("$file")
                                 fi
                             done
+                            # Copy Mods directory if exists
+                            if [[ -d "${target_path}/Mods" ]]; then
+                                safe_mkdir "${mods_base_dir}"
+                                cp -r "${target_path}/Mods"/. "${mods_base_dir}"/
+                                chown -R steam:steam "${mods_base_dir}" 2>/dev/null || true
+                                # Track deployed Lua mod directories for state cleanup
+                                for d in "${target_path}/Mods"/*; do
+                                    if [[ -d "$d" ]]; then
+                                        deployed_lua_mods+=($(basename "$d"))
+                                    fi
+                                done
+                            fi
                         fi
                     fi
                 fi
@@ -910,21 +1114,55 @@ chown steam:steam "$workshop_dir" 2>/dev/null || true
 
 declare -A workshop_folder_mappings
 
+if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
+    dbgi "=== Workshop Download Roots Inspection ==="
+    for ws_root in \
+        "/home/steam/Steam/steamapps/workshop/content/1623730" \
+        "/home/steam/.steam/steam/steamapps/workshop/content/1623730" \
+        "/home/steam/.local/share/Steam/steamapps/workshop/content/1623730" \
+        "/home/steam/steamapps/workshop/content/1623730"; do
+        if [[ -d "$ws_root" ]]; then
+            dbgi "  Workshop Root [EXISTS]: $ws_root"
+            dbgi "    Contents: $(ls -1 "$ws_root" 2>/dev/null | tr '\n' ' ')"
+        else
+            dbgi "  Workshop Root [DOES NOT EXIST]: $ws_root"
+        fi
+    done
+    dbgi "=========================================="
+fi
+
 for id in "${unique_ids[@]}"; do
-    dbgi "Processing Workshop Mod ID: $id"
+    dbgi "Processing Workshop Mod ID: '$id' (escaped: $(printf '%q' "$id"), len: ${#id})"
     # Try different potential SteamCMD download paths to ensure compatibility
-    src_dir="/home/steam/Steam/steamapps/workshop/content/1623730/${id}"
-    dbgi "  Checking path: $src_dir"
-    if [[ ! -d "$src_dir" ]]; then
-        src_dir="/home/steam/.steam/steam/steamapps/workshop/content/1623730/${id}"
-        dbgi "  Checking path: $src_dir"
-    fi
-    if [[ ! -d "$src_dir" ]]; then
-        src_dir="/home/steam/.local/share/Steam/steamapps/workshop/content/1623730/${id}"
-        dbgi "  Checking path: $src_dir"
-    fi
+    primary_src_dir="/home/steam/Steam/steamapps/workshop/content/1623730/${id}"
+    src_dir=""
+    for workshop_root in \
+        "/home/steam/Steam/steamapps/workshop/content/1623730" \
+        "/home/steam/.steam/steam/steamapps/workshop/content/1623730" \
+        "/home/steam/.local/share/Steam/steamapps/workshop/content/1623730" \
+        "/home/steam/steamapps/workshop/content/1623730"; do
+        candidate_path="${workshop_root}/${id}"
+        if [[ -d "$candidate_path" ]]; then
+            dbgi "  Checking path: '$candidate_path' -> [FOUND]"
+            src_dir="$candidate_path"
+            break
+        else
+            dbgi "  Checking path: '$candidate_path' -> [NOT FOUND]"
+        fi
+    done
     
-    if [[ -d "$src_dir" ]]; then
+    if [[ -n "$src_dir" && -d "$src_dir" ]]; then
+        if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
+            dbgi "  Listing contents of $src_dir:"
+            ls -la "$src_dir" 2>/dev/null || true
+            if [[ -f "${src_dir}/Info.json" ]]; then
+                dbgi "  Raw Info.json: $(cat "${src_dir}/Info.json" 2>/dev/null || true)"
+            fi
+            if [[ -f "${src_dir}/InstallRule.json" ]]; then
+                dbgi "  Raw InstallRule.json: $(cat "${src_dir}/InstallRule.json" 2>/dev/null || true)"
+            fi
+        fi
+
         pkg_name=$(jq -r '.PackageName // empty' "${src_dir}/Info.json" 2>/dev/null || true)
         if [[ -z "$pkg_name" || "$pkg_name" == "null" ]]; then
             folder_name="$id"
@@ -940,7 +1178,22 @@ for id in "${unique_ids[@]}"; do
         ei "Deploying Workshop mod $id ($pkg_name -> ${folder_name})..."
         deploy_mod "$src_dir" "$dest_dir" "$pkg_name" "$id"
     else
-        ew "Warning: Workshop mod $id was not found at $src_dir. Download might have failed."
+        ew "Warning: Workshop mod $id was not found at $primary_src_dir. Download might have failed."
+        if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
+            dbgi "  Diagnostics for missing Mod $id:"
+            dbgi "    Candidate paths tested:"
+            for workshop_root in \
+                "/home/steam/Steam/steamapps/workshop/content/1623730" \
+                "/home/steam/.steam/steam/steamapps/workshop/content/1623730" \
+                "/home/steam/.local/share/Steam/steamapps/workshop/content/1623730" \
+                "/home/steam/steamapps/workshop/content/1623730"; do
+                if [[ -d "$workshop_root" ]]; then
+                    dbgi "      Directory $workshop_root exists and contains: $(ls -1 "$workshop_root" 2>/dev/null | tr '\n' ' ')"
+                else
+                    dbgi "      Directory $workshop_root does not exist"
+                fi
+            done
+        fi
     fi
 done
 
@@ -1006,6 +1259,7 @@ if [[ -f "$ini_file" ]]; then
     new_ini=$(mktemp)
     in_active_list=false
     while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line//$'\r'/}"
         if [[ "$line" =~ ^\[ActiveModList\] ]]; then
             in_active_list=true
             continue
@@ -1062,6 +1316,7 @@ if [[ -f "$mods_txt_file" ]]; then
     default_ue4ss_mods=("BPModLoaderMod" "CheatManagerEnablerMod" "ConsoleCommandsMod" "ConsoleEnablerMod" "BPML_GenericFunctions" "Keybinds" "CustomBus")
     
     while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line//$'\r'/}"
         # Parse the mod name (trimming whitespace and colon)
         # e.g., "ConsoleEnablerMod : 0" -> "ConsoleEnablerMod"
         if [[ "$line" =~ ^[[:space:]]*([^[:space:]:]+)[[:space:]]*:[[:space:]]*(0|1) ]]; then
@@ -1200,14 +1455,26 @@ if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true
     dbgi "=================================================="
     dbgi "   DEBUG: Post-Deployment Directory Inspection"
     dbgi "=================================================="
+    dbgi "--> Game Binaries Directory (${bin_dir}):"
+    ls -la "$bin_dir" 2>/dev/null || true
     dbgi "--> Raw Workshop Staging (${workshop_dir}):"
     ls -laR "$workshop_dir" 2>/dev/null || true
+    dbgi "--> Native Mods Directory (${native_mods_dir}):"
+    ls -laR "$native_mods_dir" 2>/dev/null || true
     dbgi "--> UE4SS Mods Directory (${mods_base_dir}):"
     ls -laR "$mods_base_dir" 2>/dev/null || true
     dbgi "--> ~mods Directory (${GAME_ROOT}/Pal/Content/Paks/~mods):"
     ls -laR "${GAME_ROOT}/Pal/Content/Paks/~mods" 2>/dev/null || true
     dbgi "--> LogicMods Directory (${GAME_ROOT}/Pal/Content/Paks/LogicMods):"
     ls -laR "${GAME_ROOT}/Pal/Content/Paks/LogicMods" 2>/dev/null || true
+    if [[ -f "${mods_base_dir}/PalModSettings.ini" ]]; then
+        dbgi "--> PalModSettings.ini Content:"
+        cat "${mods_base_dir}/PalModSettings.ini" 2>/dev/null || true
+    fi
+    if [[ -f "${mods_base_dir}/mods.txt" ]]; then
+        dbgi "--> mods.txt Content:"
+        cat "${mods_base_dir}/mods.txt" 2>/dev/null || true
+    fi
     dbgi "=================================================="
 fi
 

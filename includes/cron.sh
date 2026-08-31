@@ -1,4 +1,7 @@
-# shellcheck disable=SC2148
+# shellcheck disable=SC2148,SC1091
+
+source /includes/colors.sh
+source /includes/utils.sh
 
 APP_HOME=/home/steam
 
@@ -6,7 +9,7 @@ APP_HOME=/home/steam
 function setup_crons() {
     if [[ -f "$APP_HOME/supercronic.pid" ]]; then
         local old_pid
-        old_pid=$(cat "$APP_HOME/supercronic.pid" 2>/dev/null || true)
+        old_pid=$(trim < "$APP_HOME/supercronic.pid" 2>/dev/null || true)
         if [[ -n "$old_pid" ]]; then
             kill "$old_pid" 2>/dev/null || pkill -f supercronic 2>/dev/null || true
         else
