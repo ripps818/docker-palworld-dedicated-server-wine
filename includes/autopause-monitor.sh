@@ -8,6 +8,7 @@
 # best-effort and guarded with `|| true`.
 
 source /includes/colors.sh
+source /includes/utils.sh
 
 AUTOPAUSE_NFLOG_GROUP="${AUTOPAUSE_NFLOG_GROUP:-100}"
 
@@ -67,7 +68,7 @@ function autopause_monitor_start() {
 function autopause_monitor_stop() {
     if [[ -f "${AUTOPAUSE_MONITOR_PIDFILE}" ]]; then
         local pid
-        pid=$(<"${AUTOPAUSE_MONITOR_PIDFILE}") 2>/dev/null || true
+        pid=$(trim < "${AUTOPAUSE_MONITOR_PIDFILE}" 2>/dev/null || true)
         if [[ -n "${pid}" ]]; then
             # Not `wait`-ing: the PID may not be this process's child (resume
             # can run from a different invocation than the one that paused),
