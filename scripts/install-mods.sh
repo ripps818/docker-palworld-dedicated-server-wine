@@ -3,23 +3,9 @@
 
 set -euo pipefail
 
-# Print messages in color if colors.sh is available
-if [[ -f "/includes/colors.sh" ]]; then
-    source /includes/colors.sh
-    source /includes/utils.sh
-else
-    # Fallback log functions
-    ei() { echo -e "\e[32mINFO:\e[0m $*"; }
-    ew() { echo -e "\e[33mWARN:\e[0m $*"; }
-    ee() { echo -e "\e[31mERROR:\e[0m $*"; }
-    es() { echo -e "\e[32mSUCCESS:\e[0m $*"; }
-    e() { echo "$*"; }
-fi
-
-# Load restapi.sh if it exists (for check_is_server_empty, etc.)
-if [[ -f "/includes/restapi.sh" ]]; then
-    source /includes/restapi.sh
-fi
+source /includes/colors.sh
+source /includes/utils.sh
+source /includes/restapi.sh
 
 GAME_ROOT="${GAME_ROOT:-/palworld}"
 STEAMCMD_PATH="${STEAMCMD_PATH:-/home/steam/steamcmd}"
@@ -122,17 +108,14 @@ if [[ -f "$mods_txt" ]]; then
         if [[ $line_num -eq 1 ]]; then
             line="${line#$'\xEF\xBB\xBF'}"
         fi
-        # Strip carriage returns and newlines
-        line="${line//$'\r'/}"
-        line="${line//$'\n'/}"
         # Strip comments
         comment_part=""
         if [[ "$line" == *"#"* ]]; then
             comment_part="${line#*#}"
             line="${line%%#*}"
         fi
-        # Trim whitespace
-        trimmed=$(echo "$line" | xargs)
+        # Sanitize and trim whitespace / CRLF
+        trimmed=$(trim "$line")
         if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
             if [[ -n "$trimmed" ]]; then
                 dbgi "  Line ${line_num}: raw=$(printf '%q' "$raw_line") -> trimmed='$trimmed' (len=${#trimmed})"
