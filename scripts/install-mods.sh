@@ -11,7 +11,7 @@ GAME_ROOT="${GAME_ROOT:-/palworld}"
 STEAMCMD_PATH="${STEAMCMD_PATH:-/home/steam/steamcmd}"
 WORKSHOP_MODS_DEBUG="${WORKSHOP_MODS_DEBUG:-false}"
 INSTALL_UE4SS_EXPERIMENTAL="${INSTALL_UE4SS_EXPERIMENTAL:-false}"
-UE4SS_EXPERIMENTAL_URL="${UE4SS_EXPERIMENTAL_URL:-https://github.com/Okaetsu/RE-UE4SS/releases/download/experimental-palworld/UE4SS-Palworld.zip}"
+UE4SS_EXPERIMENTAL_URL="${UE4SS_EXPERIMENTAL_URL:-https://github.com/Okaetsu/RE-UE4SS/releases/latest}"
 
 dbgi() {
     if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
@@ -53,6 +53,52 @@ safe_mkdir() {
         ((retries--))
     done
     mkdir -p "$dir"
+}
+
+# is_ue4ss_package - Determines if a given directory or mod package is a UE4SS distribution.
+# Used when INSTALL_UE4SS_EXPERIMENTAL is active to prevent redundant or conflicting
+# Workshop or Native UE4SS frameworks from being deployed over the experimental binaries.
+is_ue4ss_package() {
+    local dir="$1"
+    local name="${2:-}"
+    local id="${3:-}"
+
+    # Known Workshop ID for UE4SS
+    if [[ "$id" == "3625223587" ]]; then
+        return 0
+    fi
+
+    # Name check (case-insensitive)
+    local lower_name="${name,,}"
+    if [[ "$lower_name" =~ ^ue4ss.* ]]; then
+        return 0
+    fi
+
+    # Check Info.json if present
+    if [[ -f "${dir}/Info.json" ]]; then
+        local pkg_name mod_name
+        pkg_name=$(jq -r '.PackageName // empty' "${dir}/Info.json" 2>/dev/null || true)
+        mod_name=$(jq -r '.ModName // empty' "${dir}/Info.json" 2>/dev/null || true)
+        if [[ "${pkg_name,,}" =~ ^ue4ss.* || "${mod_name,,}" =~ ^ue4ss.* ]]; then
+            return 0
+        fi
+        # Check if all InstallRules are Type == "UE4SS"
+        local non_ue4ss_rules has_ue4ss_rules
+        non_ue4ss_rules=$(jq -r '.InstallRule[]? | select(.Type != "UE4SS") | .Type' "${dir}/Info.json" 2>/dev/null || true)
+        has_ue4ss_rules=$(jq -r '.InstallRule[]? | select(.Type == "UE4SS") | .Type' "${dir}/Info.json" 2>/dev/null || true)
+        if [[ -n "$has_ue4ss_rules" && -z "$non_ue4ss_rules" ]]; then
+            return 0
+        fi
+    fi
+
+    # Fallback: check if directory contains UE4SS framework files without any other mod types
+    if [[ -f "${dir}/UE4SS.dll" || -f "${dir}/dwmapi.dll" || -d "${dir}/ue4ss" ]]; then
+        if [[ ! -d "${dir}/Scripts" && ! -d "${dir}/Paks" && ! -d "${dir}/PalSchema" && ! -d "${dir}/paks" && ! -d "${dir}/raw" ]]; then
+            return 0
+        fi
+    fi
+
+    return 1
 }
 
 if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
@@ -152,6 +198,23 @@ if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true
     dbgi "Deduplicated Workshop Mod IDs to install/update: ${unique_ids[*]}"
 fi
 
+declare -A workshop_folder_mappings
+
+# If INSTALL_UE4SS_EXPERIMENTAL is enabled, filter out Workshop UE4SS from download list
+# while recording that the dependency is satisfied
+if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]]; then
+    filtered_ids=()
+    for id in "${unique_ids[@]}"; do
+        if [[ "$id" == "3625223587" ]]; then
+            ei "[UE4SS] Workshop UE4SS ($id) satisfied by INSTALL_UE4SS_EXPERIMENTAL. Skipping redundant workshop download."
+            workshop_folder_mappings["$id"]="UE4SSExperimentalPW"
+        else
+            filtered_ids+=("$id")
+        fi
+    done
+    unique_ids=("${filtered_ids[@]}")
+fi
+
 # sort_mods_by_dependencies - Performs topological dependency sorting on Workshop mod IDs.
 # Inspects each mod's Info.json to read the 'Dependencies' array (supporting string names
 # or object definitions), mapping package names to mod IDs.
@@ -198,12 +261,22 @@ sort_mods_by_dependencies() {
         fi
     done
 
+    # If INSTALL_UE4SS_EXPERIMENTAL is active, pre-satisfy UE4SS dependencies
+    if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]]; then
+        mod_pkg_to_id["UE4SSExperimentalPW"]="ue4ss-experimental-provided"
+        mod_pkg_to_id["UE4SS"]="ue4ss-experimental-provided"
+        mod_pkg_to_id["3625223587"]="ue4ss-experimental-provided"
+    fi
+
     local sorted_ids=()
     local -A visited
     local -A visiting
 
     visit_mod() {
         local id="$1"
+        if [[ "$id" == "ue4ss-experimental-provided" ]]; then
+            return 0
+        fi
         if [[ -n "${visiting[$id]:-}" ]]; then
             return 0
         fi
@@ -214,6 +287,9 @@ sort_mods_by_dependencies() {
                 while IFS= read -r dep; do
                     [[ -z "$dep" ]] && continue
                     local dep_id="${mod_pkg_to_id[$dep]:-$dep}"
+                    if [[ "$dep_id" == "ue4ss-experimental-provided" ]]; then
+                        continue
+                    fi
                     if [[ -n "${mod_id_to_pkg[$dep_id]:-}" ]]; then
                         visit_mod "$dep_id"
                     fi
@@ -453,26 +529,80 @@ if [[ "$server_running" == "true" ]]; then
     fi
 fi
 
+# Helper function to resolve the latest UE4SS experimental release zip URL from GitHub
+resolve_ue4ss_experimental_url() {
+    local configured_url="$1"
+    
+    # If the user supplied a custom URL that is a direct zip file and not the legacy frozen release or releases/latest
+    if [[ "$configured_url" =~ \.zip$ ]] && \
+       [[ "$configured_url" != *"Okaetsu/RE-UE4SS/releases/download/experimental-palworld/UE4SS-Palworld.zip"* ]] && \
+       [[ "$configured_url" != *"Okaetsu/RE-UE4SS/releases/latest/download/"* ]]; then
+        echo "$configured_url"
+        return 0
+    fi
+
+    # Check if configured_url points to Okaetsu/RE-UE4SS or releases/latest or legacy experimental-palworld
+    if [[ -z "$configured_url" ]] || \
+       [[ "$configured_url" == *"Okaetsu/RE-UE4SS"* ]] || \
+       [[ "$configured_url" == *"releases/latest"* ]]; then
+        dbgi "Resolving latest UE4SS Experimental release from GitHub..."
+        local api_url="https://api.github.com/repos/Okaetsu/RE-UE4SS/releases/latest"
+        local resolved_url=""
+        
+        # 1. Try GitHub API
+        resolved_url=$(curl -sSfL "$api_url" 2>/dev/null | jq -r '[.assets[] | select((.name | test("^UE4SS-Palworld.*\\.zip$")) and (.name | test("zDev"; "i") | not)) | .browser_download_url][0] // empty' 2>/dev/null || true)
+        
+        if [[ -n "$resolved_url" && "$resolved_url" != "null" ]]; then
+            echo "$resolved_url"
+            return 0
+        fi
+        
+        # 2. Fallback: inspect redirect location header and expanded_assets
+        local tag
+        tag=$(curl -sIL "https://github.com/Okaetsu/RE-UE4SS/releases/latest" 2>/dev/null | grep -i "^location:" | sed -E 's/.*tag\/(.*)/\1/' | tr -d "\r\n")
+        if [[ -n "$tag" ]]; then
+            local asset_path
+            asset_path=$(curl -sL "https://github.com/Okaetsu/RE-UE4SS/releases/expanded_assets/${tag}" 2>/dev/null | grep -o "/Okaetsu/RE-UE4SS/releases/download/${tag}/[^\" '?]*" | grep -E "UE4SS-Palworld.*\.zip" | grep -v -i "zdev" | head -n 1)
+            if [[ -n "$asset_path" ]]; then
+                echo "https://github.com${asset_path}"
+                return 0
+            fi
+        fi
+        ew "Unable to query latest release from GitHub API/expanded assets. Falling back to configured URL: $configured_url"
+    fi
+
+    echo "$configured_url"
+    return 0
+}
+
 # Handle Okaetsu's UE4SS Experimental download/update/extraction
 ue4ss_exp_local_zip="${GAME_ROOT}/Mods/ue4ss-experimental.zip"
 ue4ss_exp_temp_zip="${GAME_ROOT}/Mods/ue4ss-experimental.zip.tmp"
-ue4ss_exp_target_dir="${GAME_ROOT}/Mods/NativeMods/ue4ss-experimental"
+ue4ss_exp_url_file="${GAME_ROOT}/Mods/ue4ss-experimental.url"
+ue4ss_exp_target_dir="${GAME_ROOT}/Mods/.cache/ue4ss-experimental"
 
 if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]]; then
     mkdir -p "${GAME_ROOT}/Mods"
-    mkdir -p "${GAME_ROOT}/Mods/NativeMods"
+    mkdir -p "${GAME_ROOT}/Mods/.cache"
     
     download_ok=false
     need_extract=false
 
-    if [[ -f "$ue4ss_exp_local_zip" ]]; then
-        ei "Checking for updates for UE4SS Experimental..."
+    effective_ue4ss_url=$(resolve_ue4ss_experimental_url "$UE4SS_EXPERIMENTAL_URL")
+    cached_ue4ss_url=""
+    if [[ -f "$ue4ss_exp_url_file" ]]; then
+        cached_ue4ss_url=$(cat "$ue4ss_exp_url_file" 2>/dev/null || true)
+    fi
+
+    if [[ -f "$ue4ss_exp_local_zip" && -n "$cached_ue4ss_url" && "$cached_ue4ss_url" == "$effective_ue4ss_url" ]]; then
+        ei "Checking for updates for UE4SS Experimental ($effective_ue4ss_url)..."
         # Use -z to only download if the remote file is newer
-        if curl -sSfL -z "$ue4ss_exp_local_zip" -o "$ue4ss_exp_temp_zip" "$UE4SS_EXPERIMENTAL_URL"; then
+        if curl -sSfL -z "$ue4ss_exp_local_zip" -o "$ue4ss_exp_temp_zip" "$effective_ue4ss_url"; then
             download_ok=true
             if [[ -s "$ue4ss_exp_temp_zip" ]]; then
                 ei "Newer version of UE4SS Experimental downloaded successfully."
                 mv -f "$ue4ss_exp_temp_zip" "$ue4ss_exp_local_zip"
+                echo "$effective_ue4ss_url" > "$ue4ss_exp_url_file"
                 need_extract=true
             else
                 ei "UE4SS Experimental is already up to date."
@@ -482,24 +612,35 @@ if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]]; then
                 fi
             fi
         else
-            ew "Failed to check/download updates from $UE4SS_EXPERIMENTAL_URL. Falling back to cached version."
-            # Fall back to cached version if it exists
+            ew "Failed to check updates from $effective_ue4ss_url. Using existing cached version."
+            download_ok=true
+            if [[ ! -d "$ue4ss_exp_target_dir" ]]; then
+                need_extract=true
+            fi
+        fi
+    else
+        if [[ -f "$ue4ss_exp_local_zip" && -n "$cached_ue4ss_url" && "$cached_ue4ss_url" != "$effective_ue4ss_url" ]]; then
+            ei "New UE4SS Experimental release detected ($effective_ue4ss_url vs cached $cached_ue4ss_url). Downloading update..."
+        else
+            ei "Downloading UE4SS Experimental from $effective_ue4ss_url..."
+        fi
+        
+        if curl -sSfL -o "$ue4ss_exp_temp_zip" "$effective_ue4ss_url" && [[ -s "$ue4ss_exp_temp_zip" ]]; then
+            mv -f "$ue4ss_exp_temp_zip" "$ue4ss_exp_local_zip"
+            echo "$effective_ue4ss_url" > "$ue4ss_exp_url_file"
+            download_ok=true
+            need_extract=true
+        else
+            rm -f "$ue4ss_exp_temp_zip"
             if [[ -f "$ue4ss_exp_local_zip" ]]; then
+                ew "Failed to download from $effective_ue4ss_url. Falling back to cached version."
                 download_ok=true
                 if [[ ! -d "$ue4ss_exp_target_dir" ]]; then
                     need_extract=true
                 fi
             else
-                ee "No cached version of UE4SS Experimental found."
+                ee "Failed to download UE4SS Experimental from $effective_ue4ss_url."
             fi
-        fi
-    else
-        ei "Downloading UE4SS Experimental from $UE4SS_EXPERIMENTAL_URL..."
-        if curl -sSfL -o "$ue4ss_exp_local_zip" "$UE4SS_EXPERIMENTAL_URL"; then
-            download_ok=true
-            need_extract=true
-        else
-            ee "Failed to download UE4SS Experimental."
         fi
     fi
 
@@ -515,13 +656,16 @@ if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]]; then
             rm -rf "$ue4ss_exp_target_dir"
         fi
     fi
+
+    # Clean up legacy NativeMods/ue4ss-experimental if present from previous runs
+    rm -rf "${GAME_ROOT}/Mods/NativeMods/ue4ss-experimental"
 else
-    # If the flag is disabled, ensure the NativeMods target directory is removed
-    # so it does not get deployed during the native mods phase.
+    # If the flag is disabled, ensure the target directory and legacy native mod are removed
     if [[ -d "$ue4ss_exp_target_dir" ]]; then
-        ei "INSTALL_UE4SS_EXPERIMENTAL is disabled. Removing UE4SS Experimental native mod directory..."
+        ei "INSTALL_UE4SS_EXPERIMENTAL is disabled. Removing UE4SS Experimental cache..."
         rm -rf "$ue4ss_exp_target_dir"
     fi
+    rm -rf "${GAME_ROOT}/Mods/NativeMods/ue4ss-experimental"
 fi
 
 # Report whether a package installs UE4SS at the Win64 root or nested under
@@ -607,25 +751,29 @@ if [[ -d "${GAME_ROOT}/Mods/NativeMods" ]]; then
     done
 fi
 
-for package_dir in "${ue4ss_package_dirs[@]}"; do
-    package_layout=$(detect_ue4ss_layout "$package_dir")
-    if [[ "$package_layout" == "root" ]]; then
-        ue4ss_mods_layout="root"
-        break
-    elif [[ "$package_layout" == "nested" ]]; then
-        nested_ue4ss_found=true
-    fi
-done
-if [[ -z "$ue4ss_mods_layout" && "$nested_ue4ss_found" == "true" ]]; then
+if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]]; then
     ue4ss_mods_layout="nested"
-fi
-if [[ -z "$ue4ss_mods_layout" && -f "$state_file" ]]; then
-    recorded_layout=$(jq -r '.ue4ss_mods_layout // empty' "$state_file" 2>/dev/null || true)
-    if [[ "$recorded_layout" == "root" || "$recorded_layout" == "nested" ]]; then
-        ue4ss_mods_layout="$recorded_layout"
+else
+    for package_dir in "${ue4ss_package_dirs[@]}"; do
+        package_layout=$(detect_ue4ss_layout "$package_dir")
+        if [[ "$package_layout" == "root" ]]; then
+            ue4ss_mods_layout="root"
+            break
+        elif [[ "$package_layout" == "nested" ]]; then
+            nested_ue4ss_found=true
+        fi
+    done
+    if [[ -z "$ue4ss_mods_layout" && "$nested_ue4ss_found" == "true" ]]; then
+        ue4ss_mods_layout="nested"
     fi
+    if [[ -z "$ue4ss_mods_layout" && -f "$state_file" ]]; then
+        recorded_layout=$(jq -r '.ue4ss_mods_layout // empty' "$state_file" 2>/dev/null || true)
+        if [[ "$recorded_layout" == "root" || "$recorded_layout" == "nested" ]]; then
+            ue4ss_mods_layout="$recorded_layout"
+        fi
+    fi
+    ue4ss_mods_layout="${ue4ss_mods_layout:-root}"
 fi
-ue4ss_mods_layout="${ue4ss_mods_layout:-root}"
 if [[ "$ue4ss_mods_layout" == "nested" ]]; then
     mods_base_dir="${bin_dir}/ue4ss/Mods"
 else
@@ -712,6 +860,68 @@ deployed_ue4ss_files=()
 deployed_lua_mods=()
 deployed_palschema_mods=()
 
+# Clean up any legacy ue4ss-experimental folders inside Mods from prior runs
+rm -rf "${bin_dir}/ue4ss/Mods/ue4ss-experimental" "${bin_dir}/Mods/ue4ss-experimental"
+
+# Deploy UE4SS Experimental core framework directly to bin_dir before any mods are processed
+if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" && -d "$ue4ss_exp_target_dir" ]]; then
+    ei "Deploying UE4SS Experimental framework to ${bin_dir}..."
+    
+    # 1. Deploy proxy DLL (dwmapi.dll)
+    if [[ -f "${ue4ss_exp_target_dir}/dwmapi.dll" ]]; then
+        cp -f "${ue4ss_exp_target_dir}/dwmapi.dll" "${bin_dir}/dwmapi.dll"
+        chown steam:steam "${bin_dir}/dwmapi.dll" 2>/dev/null || true
+        dbgi "[UE4SS Experimental] Deployed dwmapi.dll to ${bin_dir}/dwmapi.dll"
+        deployed_ue4ss_files+=("dwmapi.dll")
+    else
+        ee "Error: dwmapi.dll missing from extracted UE4SS Experimental package!"
+    fi
+
+    # 2. Deploy core ue4ss framework folder (excluding Mods)
+    if [[ -d "${ue4ss_exp_target_dir}/ue4ss" ]]; then
+        safe_mkdir "${bin_dir}/ue4ss"
+        for item in "${ue4ss_exp_target_dir}/ue4ss"/*; do
+            base_item=$(basename "$item")
+            if [[ "$base_item" != "Mods" ]]; then
+                cp -rf "$item" "${bin_dir}/ue4ss/"
+            fi
+        done
+
+        # 3. Deploy default built-in mods into ue4ss/Mods
+        safe_mkdir "${bin_dir}/ue4ss/Mods"
+        if [[ -d "${ue4ss_exp_target_dir}/ue4ss/Mods" ]]; then
+            for mod_item in "${ue4ss_exp_target_dir}/ue4ss/Mods"/*; do
+                mod_name=$(basename "$mod_item")
+                if [[ "$mod_name" == "mods.txt" || "$mod_name" == "mods.json" ]]; then
+                    if [[ ! -f "${bin_dir}/ue4ss/Mods/${mod_name}" ]]; then
+                        cp -f "$mod_item" "${bin_dir}/ue4ss/Mods/${mod_name}"
+                    fi
+                else
+                    cp -rf "$mod_item" "${bin_dir}/ue4ss/Mods/"
+                fi
+            done
+        fi
+
+        chown -R steam:steam "${bin_dir}/ue4ss" 2>/dev/null || true
+        dbgi "[UE4SS Experimental] Deployed ue4ss framework to ${bin_dir}/ue4ss"
+        deployed_ue4ss_files+=("ue4ss")
+    fi
+
+    # 4. Generate metadata Info.json for UE4SSExperimentalPW so mod dependency checks succeed
+    mkdir -p "${GAME_ROOT}/Mods/Workshop/UE4SSExperimentalPW" 2>/dev/null || true
+    cat << 'EOF' > "${GAME_ROOT}/Mods/Workshop/UE4SSExperimentalPW/Info.json"
+{
+  "ModName": "UE4SS Experimental (Palworld)",
+  "PackageName": "UE4SSExperimentalPW",
+  "Version": "experimental",
+  "Author": "Okaetsu",
+  "Dependencies": []
+}
+EOF
+    chown -R steam:steam "${GAME_ROOT}/Mods/Workshop/UE4SSExperimentalPW" 2>/dev/null || true
+    dbgi "[UE4SS Experimental] Created metadata stub at ${GAME_ROOT}/Mods/Workshop/UE4SSExperimentalPW/Info.json"
+fi
+
 # Helper function to apply user configuration overrides from /palworld/Mods/ConfigOverrides
 config_overrides_dir="${GAME_ROOT}/Mods/ConfigOverrides"
 mkdir -p "$config_overrides_dir" 2>/dev/null || true
@@ -774,16 +984,20 @@ deploy_mod_auto_discover() {
 
     # 4b. Handle UE4SS framework files (dwmapi.dll, UE4SS.dll, UE4SS-settings.ini)
     if [[ -d "${dest_dir}/ue4ss" ]]; then
-        ei "  Found ue4ss folder. Deploying..."
-        cp -r "${dest_dir}/ue4ss" "${bin_dir}/"
-        chown -R steam:steam "${bin_dir}/ue4ss" 2>/dev/null || true
-        dbgi "  [UE4SS] Absolute destination: ${bin_dir}/ue4ss"
-        deployed_ue4ss_files+=("ue4ss")
+        if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]]; then
+            ei "  Found ue4ss folder in mod. Preserving UE4SS Experimental (skipping mod's ue4ss folder)..."
+        else
+            ei "  Found ue4ss folder. Deploying..."
+            cp -r "${dest_dir}/ue4ss" "${bin_dir}/"
+            chown -R steam:steam "${bin_dir}/ue4ss" 2>/dev/null || true
+            dbgi "  [UE4SS] Absolute destination: ${bin_dir}/ue4ss"
+            deployed_ue4ss_files+=("ue4ss")
+        fi
     fi
 
     if [[ -f "${dest_dir}/dwmapi.dll" ]]; then
         if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]]; then
-            ei "  Found dwmapi.dll. Preserving UE4SS Experimental (skipping Workshop dwmapi.dll)..."
+            ei "  Found dwmapi.dll in mod. Preserving UE4SS Experimental (skipping mod's dwmapi.dll)..."
         else
             ei "  Found dwmapi.dll. Deploying..."
             cp -f "${dest_dir}/dwmapi.dll" "${bin_dir}/"
@@ -793,7 +1007,7 @@ deploy_mod_auto_discover() {
         fi
     elif [[ -f "${dest_dir}/UE4SS.dll" ]]; then
         if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]]; then
-            ei "  Found UE4SS.dll. Preserving UE4SS Experimental (skipping Workshop UE4SS.dll)..."
+            ei "  Found UE4SS.dll in mod. Preserving UE4SS Experimental (skipping mod's UE4SS.dll)..."
         else
             ei "  Found UE4SS.dll. Deploying as dwmapi.dll..."
             cp -f "${dest_dir}/UE4SS.dll" "${bin_dir}/dwmapi.dll"
@@ -807,11 +1021,15 @@ deploy_mod_auto_discover() {
     # Check for other dlls or settings
     for file in "UE4SS-settings.ini" "Vindsent.dll" "MemberVariableLayout.ini"; do
         if [[ -f "${dest_dir}/${file}" ]]; then
-            ei "  Found UE4SS file: $file. Deploying..."
-            cp -f "${dest_dir}/${file}" "${bin_dir}/"
-            chown steam:steam "${bin_dir}/${file}" 2>/dev/null || true
-            dbgi "  [Framework File] Absolute destination: ${bin_dir}/${file}"
-            deployed_ue4ss_files+=("$file")
+            if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]]; then
+                ei "  Found UE4SS file: $file in mod. Preserving UE4SS Experimental (skipping mod's $file)..."
+            else
+                ei "  Found UE4SS file: $file. Deploying..."
+                cp -f "${dest_dir}/${file}" "${bin_dir}/"
+                chown steam:steam "${bin_dir}/${file}" 2>/dev/null || true
+                dbgi "  [Framework File] Absolute destination: ${bin_dir}/${file}"
+                deployed_ue4ss_files+=("$file")
+            fi
         fi
     done
 
@@ -1112,7 +1330,7 @@ workshop_dir="${GAME_ROOT}/Mods/Workshop"
 mkdir -p "$workshop_dir" 2>/dev/null || true
 chown steam:steam "$workshop_dir" 2>/dev/null || true
 
-declare -A workshop_folder_mappings
+# workshop_folder_mappings is declared earlier
 
 if [[ -n "${WORKSHOP_MODS_DEBUG:-}" ]] && [[ "${WORKSHOP_MODS_DEBUG,,}" == "true" ]]; then
     dbgi "=== Workshop Download Roots Inspection ==="
@@ -1171,6 +1389,12 @@ for id in "${unique_ids[@]}"; do
             folder_name="$pkg_name"
         fi
 
+        if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]] && is_ue4ss_package "$src_dir" "$pkg_name" "$id"; then
+            ei "[UE4SS] Detected Workshop UE4SS package '$pkg_name' ($id). Satisfied by INSTALL_UE4SS_EXPERIMENTAL, skipping installation."
+            workshop_folder_mappings["$id"]="UE4SSExperimentalPW"
+            continue
+        fi
+
         workshop_folder_mappings["$id"]="$folder_name"
         dest_dir="${workshop_dir}/${folder_name}"
         dbgi "  Destination path: $dest_dir"
@@ -1209,12 +1433,16 @@ if [[ -d "$native_mods_dir" ]]; then
         if [[ -d "$mod_path" ]]; then
             mod_name=$(basename "$mod_path")
             dbgi "  Found Native mod: $mod_name at $mod_path"
-            ei "Deploying Native mod $mod_name..."
-            dest_dir="${mods_base_dir}/${mod_name}"
             pkg_name=$(jq -r '.PackageName // empty' "${mod_path}/Info.json" 2>/dev/null || true)
             if [[ -z "$pkg_name" || "$pkg_name" == "null" ]]; then
                 pkg_name="$mod_name"
             fi
+            if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]] && is_ue4ss_package "$mod_path" "$pkg_name" "$mod_name"; then
+                ei "[UE4SS] Detected Native UE4SS mod '$mod_name'. Satisfied by INSTALL_UE4SS_EXPERIMENTAL, skipping installation."
+                continue
+            fi
+            ei "Deploying Native mod $mod_name..."
+            dest_dir="${mods_base_dir}/${mod_name}"
             deploy_mod "$mod_path" "$dest_dir" "$pkg_name"
             native_mod_names+=("$mod_name")
         fi
@@ -1223,6 +1451,10 @@ fi
 
 # 4c. Parse deployed mod's Info.json and rewrite ActiveModList in PalModSettings.ini
 active_packages=()
+if [[ "${INSTALL_UE4SS_EXPERIMENTAL,,}" == "true" ]]; then
+    active_packages+=("UE4SSExperimentalPW")
+fi
+
 for id in "${unique_ids[@]}"; do
     folder_name="${workshop_folder_mappings[$id]:-$id}"
     info_json="${workshop_dir}/${folder_name}/Info.json"
@@ -1253,10 +1485,12 @@ for mod_name in "${native_mod_names[@]}"; do
 done
 
 ini_file="${mods_base_dir}/PalModSettings.ini"
+root_ini_file="${GAME_ROOT}/Mods/PalModSettings.ini"
+
+dbgi "Updating PalModSettings.ini. Active packages to write: ${active_packages[*]}"
+ei "Updating ${ini_file}..."
+new_ini=$(mktemp)
 if [[ -f "$ini_file" ]]; then
-    dbgi "Updating PalModSettings.ini. Active packages to write: ${active_packages[*]}"
-    ei "Updating ${ini_file}..."
-    new_ini=$(mktemp)
     in_active_list=false
     while IFS= read -r line || [[ -n "$line" ]]; do
         line="${line//$'\r'/}"
@@ -1277,34 +1511,44 @@ if [[ -f "$ini_file" ]]; then
             echo "$line" >> "$new_ini"
         fi
     done < "$ini_file"
-    
-    # Ensure bGlobalEnableMod=true is set
-    if ! grep -q "^bGlobalEnableMod=true" "$new_ini" 2>/dev/null; then
-        if grep -q "^bGlobalEnableMod=" "$new_ini" 2>/dev/null; then
-            sed -i 's/^bGlobalEnableMod=.*/bGlobalEnableMod=true/' "$new_ini"
+else
+    echo "[Settings]" >> "$new_ini"
+    echo "bGlobalEnableMod=true" >> "$new_ini"
+fi
+
+# Ensure bGlobalEnableMod=true is set
+if ! grep -q "^bGlobalEnableMod=true" "$new_ini" 2>/dev/null; then
+    if grep -q "^bGlobalEnableMod=" "$new_ini" 2>/dev/null; then
+        sed -i 's/^bGlobalEnableMod=.*/bGlobalEnableMod=true/' "$new_ini"
+    else
+        if grep -q "\[Settings\]" "$new_ini" 2>/dev/null; then
+            sed -i '/^\[Settings\]/a bGlobalEnableMod=true' "$new_ini"
         else
-            if grep -q "\[Settings\]" "$new_ini" 2>/dev/null; then
-                sed -i '/^\[Settings\]/a bGlobalEnableMod=true' "$new_ini"
-            else
-                echo -e "[Settings]\nbGlobalEnableMod=true\n$(cat "$new_ini")" > "$new_ini"
-            fi
+            echo -e "[Settings]\nbGlobalEnableMod=true\n$(cat "$new_ini")" > "$new_ini"
         fi
     fi
-
-    # Append ActiveModList at the end
-    echo "" >> "$new_ini"
-    echo "[ActiveModList]" >> "$new_ini"
-    for pkg in "${active_packages[@]}"; do
-        echo "${pkg}=true" >> "$new_ini"
-    done
-    
-    mv "$new_ini" "$ini_file"
-    chmod 644 "$ini_file"
-    chown steam:steam "$ini_file" 2>/dev/null || true
-    es "Updated ActiveModList in PalModSettings.ini successfully."
-else
-    ei "PalModSettings.ini does not exist yet. Skipping ini update."
 fi
+
+# Append ActiveModList at the end
+echo "" >> "$new_ini"
+echo "[ActiveModList]" >> "$new_ini"
+for pkg in "${active_packages[@]}"; do
+    echo "${pkg}=true" >> "$new_ini"
+done
+
+safe_mkdir "$(dirname "$ini_file")"
+cp "$new_ini" "$ini_file"
+chmod 644 "$ini_file"
+chown steam:steam "$ini_file" 2>/dev/null || true
+
+# Also sync to /palworld/Mods/PalModSettings.ini if GAME_ROOT/Mods exists
+if [[ -d "${GAME_ROOT}/Mods" ]]; then
+    cp "$new_ini" "$root_ini_file"
+    chmod 644 "$root_ini_file"
+    chown steam:steam "$root_ini_file" 2>/dev/null || true
+fi
+rm -f "$new_ini"
+es "Updated ActiveModList in PalModSettings.ini successfully."
 
 # Update mods.txt in Mods folder to enable deployed Lua mods
 mods_txt_file="${mods_base_dir}/mods.txt"

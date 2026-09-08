@@ -61,7 +61,7 @@ These settings control the behavior of the Docker container:
 | `STEAM_PASSWORD`                        | Steam password corresponding to `STEAM_USERNAME`. Leave empty if password-less or verifying via cached login token.                                                                                      |                                                                                                  | String                                |
 | `WORKSHOP_MODS_DEBUG`                   | Set to enabled will post debug messages for workshop mod downloads and installations                                                                                                                     | false                                                                                            | Boolean                               |
 | `INSTALL_UE4SS_EXPERIMENTAL`            | Downloads and installs Okaetsu's experimental version of the UE4SS framework.                                                                                                                            | false                                                                                            | Boolean                               |
-| `UE4SS_EXPERIMENTAL_URL`                | The URL of the Okaetsu UE4SS experimental zip file.                                                                                                                                                      | `https://github.com/Okaetsu/RE-UE4SS/releases/download/experimental-palworld/UE4SS-Palworld.zip` | Url                                   |
+| `UE4SS_EXPERIMENTAL_URL`                | The URL of the Okaetsu UE4SS experimental zip file (or release page).                                                                                                                                    | `https://github.com/Okaetsu/RE-UE4SS/releases/latest`                                            | Url                                   |
 | `WEBHOOK_*`                             | See below for [Webhook Environment Variables](#webhook-settings)                                                                                                                                         |                                                                                                  | String                                |
 | `SERVER_SETTINGS_MODE`                  | Determines whether settings can be modified via environment variables or via file, except `COMMUNITY_SERVER`, `MULTITHREAD_ENABLED` and `NOSTEAM_ENABLED`!                                               | `auto`                                                                                           | Enum                                  |
 
@@ -128,12 +128,12 @@ Custom mod configuration files placed in `/palworld/Mods/ConfigOverrides/<Packag
 The container can automatically download, cache, and install Okaetsu's experimental version of the UE4SS framework (designed to resolve compatibility issues with certain mods).
 
 - **`INSTALL_UE4SS_EXPERIMENTAL`**: Set to `true` to enable.
-- **`UE4SS_EXPERIMENTAL_URL`**: (Optional) Customize the download URL of the UE4SS zip file. Defaults to `https://github.com/Okaetsu/RE-UE4SS/releases/download/experimental-palworld/UE4SS-Palworld.zip`.
+- **`UE4SS_EXPERIMENTAL_URL`**: (Optional) Customize the download URL of the UE4SS zip file. Defaults to `https://github.com/Okaetsu/RE-UE4SS/releases/latest` (the container automatically queries the latest GitHub release asset and falls back gracefully).
 
 When enabled:
 - The zip file is downloaded and cached at `/palworld/Mods/ue4ss-experimental.zip`.
-- If an update is available on the upstream server, it will download it. If the server is offline or the check fails, it will gracefully fallback to the cached zip.
-- The framework is extracted and deployed as a Native Mod, ensuring it takes priority over any UE4SS installations deployed by Steam Workshop mods.
+- If an update is available on the upstream server (or a new release is published), it will automatically download it. If the server is offline or the check fails, it will gracefully fallback to the cached zip.
+- The framework is extracted and deployed directly to `Pal/Binaries/Win64/`, ensuring it takes priority over any UE4SS installations deployed by Steam Workshop mods, satisfies mod dependencies (such as `UE4SSExperimentalPW`), and prevents duplicate UE4SS conflicts.
 
 ### Webhook environment variables
 
