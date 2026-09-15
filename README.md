@@ -45,6 +45,7 @@ ___
   - [Automatic Server Pausing (Auto-Pause)](#automatic-server-pausing-auto-pause)
   - [Webhook integration](#webhook-integration)
     - [Supported events](#supported-events)
+  - [Companion sidecar: web panel & Discord status card](#companion-sidecar-web-panel--discord-status-card)
   - [Deploy with Helm](#deploy-with-helm)
   - [FAQ](#faq)
     - [Does this image support Xbox Dedicated Servers?](#does-this-image-support-xbox-dedicated-servers)
@@ -264,8 +265,44 @@ services:
         protocol: tcp
     env_file:
       - ./default.env
+    environment:
+      # Read-only view of the companion's data dir - settings-overrides.env
+      # written by the web panel is applied from there at boot
+      COMPANION_DATA_DIR: /companion-data
     volumes:
       - ./game:/palworld
+      - ./companion:/companion-data:ro
+    networks:
+      - palworld
+
+  # Companion sidecar: web operation panel + Discord status card & bot.
+  # Disabled by default - it idles until you enable PANEL_ENABLED and/or
+  # DISCORD_STATUS_ENABLED in default.env (ALL companion variables live there,
+  # in the "Companion-sidecar-settings" section).
+  # Docs: https://github.com/jammsen/docker-palworld-companion
+  companion:
+    container_name: palworld-companion
+    # develop tag during the testing grace period - switches to latest with
+    # the companion's first stable release
+    image: jammsen/palworld-companion:develop
+    restart: unless-stopped
+    depends_on:
+      - palworld-dedicated-server
+    ports:
+      # (Needs: PANEL_ENABLED=true)
+      # Warning! DO NOT expose this port to the internet, use a reverse proxy or VPN/LAN only
+      - target: 8213 # Web panel port inside of the container
+        published: 8213 # Web panel port on your host
+        protocol: tcp
+        mode: host
+    env_file:
+      - ./default.env
+    environment:
+      RESTAPI_HOST: palworld-wine-server
+      COMPANION_DATA_DIR: /data
+    volumes:
+      - ./game:/palworld:ro
+      - ./companion:/data
     networks:
       - palworld
 
@@ -403,6 +440,30 @@ After enabling the server should send messages in a Discord-Compatible way to yo
 - Server stopped
 - Server updating
 - Server updating and validating
+
+## Companion sidecar: web panel & Discord status card
+
+The **web operation panel** (dashboard, player moderation, settings editor with persistence, one-click restart) and the **Discord live status card** (one message, edited in place with live server stats and an event log) live in their own repo and run as an optional sidecar container next to this image:
+
+> **[jammsen/docker-palworld-companion](https://github.com/jammsen/docker-palworld-companion)** - image: `jammsen/palworld-companion:develop` (until the first stable release)
+
+The companion is part of the [compose example](#docker-compose-examples) and **disabled by default** - it starts alongside the gameserver and idles until you enable a feature. Your server directory looks like this:
+
+```text
+.
+├── companion    # companion data dir (created on first start)
+├── compose.yml  # both services
+├── default.env  # ALL variables for both services, in one file
+└── game         # game data dir
+```
+
+Enabling it is done entirely in `default.env`, in the `Companion-sidecar-settings` section: set `PANEL_ENABLED=true` plus a `PANEL_PASSWORD` for the web panel, and/or `DISCORD_STATUS_ENABLED=true` for the Discord card - then `docker compose up -d` again. `RESTAPI_ENABLED=true` and `ADMIN_PASSWORD` (already in the file) are required - the companion talks to this image through the REST API and two shared volume mounts.
+
+> [!NOTE]
+> **Compatibility with AUTO_PAUSE:**
+> By default, `AUTO_PAUSE_WAKE_ON_REST=false`, meaning incoming 30-second background polling from the companion's status card on port 8212 will **not** wake a paused/sleeping server. The server will only wake when players attempt to connect to the game (`8211/udp`).
+
+> **Security warning:** The panel speaks plain HTTP - do **NOT** publish port 8213 to the internet. Use it LAN/VPN-only or put a TLS reverse proxy (Caddy, Traefik, nginx) in front.
 
 ## Deploy with Helm
 

@@ -4,6 +4,7 @@
 set -e
 
 source /includes/colors.sh
+source /includes/gameevents.sh
 source /includes/utils.sh
 source /includes/server.sh
 source /includes/webhook.sh
@@ -14,6 +15,7 @@ function get_time() {
 
 function schedule_restart() {
     ew ">>> Automatic restart was triggered..."
+    log_game_event restart
     autopause_disable
     if [[ -f "${GAME_ROOT}/PLAYER_DETECTION.PID" ]]; then
         export PLAYER_DETECTION_PID=$(trim < "${GAME_ROOT}/PLAYER_DETECTION.PID")
@@ -65,6 +67,7 @@ function schedule_restart() {
         if [[ -n "${PLAYER_DETECTION_PID}" ]]; then
             kill -SIGTERM "${PLAYER_DETECTION_PID}" 2>/dev/null
         fi
+        log_game_event stopping
         restapi_shutdown 10 "$(get_time) Server restarting..."
         if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
             send_stop_notification

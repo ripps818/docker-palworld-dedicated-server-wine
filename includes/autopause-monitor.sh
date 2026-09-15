@@ -20,11 +20,15 @@ function autopause_monitor_interface() {
     echo "${iface}"
 }
 
-# Ports to watch: game UDP and REST API TCP. Game port is always 8211 - this
-# image has no -port= launch flag, so PUBLIC_PORT (the ini's advertised port,
-# can differ behind a tunnel/NAT) is not the same thing as the real listener.
+# Ports to watch: game UDP (always 8211) and optionally REST API TCP.
+# When AUTO_PAUSE_WAKE_ON_REST is false (default), only incoming game connections
+# wake the server so background polling (e.g. from companion sidecar) doesn't wake it.
 function autopause_monitor_watch_ports() {
-    echo "8211/udp ${RESTAPI_PORT:-8212}/tcp"
+    local ports="8211/udp"
+    if [[ "${AUTO_PAUSE_WAKE_ON_REST,,}" == "true" ]]; then
+        ports+=" ${RESTAPI_PORT:-8212}/tcp"
+    fi
+    echo "${ports}"
 }
 
 function autopause_monitor_start() {

@@ -1,6 +1,7 @@
 # shellcheck disable=SC2148,SC1091
 
 source /includes/colors.sh
+source /includes/gameevents.sh
 source /includes/restapi.sh
 source /includes/webhook.sh
 
@@ -93,7 +94,12 @@ function start_server() {
     fi
     check_and_run_custom_script
 
+    if [[ -d "${GAME_ROOT}/Pal/Saved/Config/WindowsServer" ]] && [[ ! -e "${GAME_ROOT}/Pal/Saved/Config/LinuxServer" ]]; then
+        ln -s "WindowsServer" "${GAME_ROOT}/Pal/Saved/Config/LinuxServer" 2>/dev/null || true
+    fi
+
     es ">>> Starting the gameserver"
+    log_game_event starting
     # Real pty (via script) so Wine's WriteConsoleW transcodes instead of emitting raw UTF-16LE
     local wine_cmd
     wine_cmd="exec $(printf '%q ' "${WINE_BIN}" "${GAME_BIN}" "${START_OPTIONS[@]}")"
@@ -123,10 +129,14 @@ function start_server() {
 
 function stop_server() {
     ew ">>> Stopping server..."
+    log_game_event stopping
     autopause_disable
     touch "${GAME_ROOT}/.stopping" 2>/dev/null || true
     if [[ -n "${PLAYER_DETECTION_PID}" ]]; then
         kill -SIGTERM "${PLAYER_DETECTION_PID}" 2>/dev/null
+    fi
+    if [[ -n "${GAME_EVENTS_MAINTENANCE_PID}" ]]; then
+        kill -SIGTERM "${GAME_EVENTS_MAINTENANCE_PID}" 2>/dev/null || true
     fi
 
     local server_executable
@@ -217,6 +227,7 @@ function run_steamcmd() {
 
 function fresh_install_server() {
     ei ">>> Doing a fresh install of the gameserver..."
+    log_game_event installing
     if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
         send_install_notification
     fi
@@ -233,6 +244,7 @@ function update_server() {
     fi
     if [[ -n $STEAMCMD_VALIDATE_FILES ]] && [[ "${STEAMCMD_VALIDATE_FILES,,}" == "true" ]]; then
         ei ">>> Doing an update with validation of the gameserver files..."
+        log_game_event updating-validate
         if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
             send_update_validation_notification
         fi
@@ -240,6 +252,7 @@ function update_server() {
         es ">>> Done updating and validating the gameserver files"
     else
         ei ">>> Doing an update of the gameserver files..."
+        log_game_event updating
         if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
             send_update_notification
         fi

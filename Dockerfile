@@ -92,6 +92,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     AUTO_PAUSE_HEARTBEAT_PULSE=false \
     AUTO_PAUSE_HEARTBEAT_INTERVAL=90 \
     AUTO_PAUSE_HEARTBEAT_DURATION=4 \
+    AUTO_PAUSE_WAKE_ON_REST=false \
     # Hang-detection-settings - NEEDS RESTAPI_ENABLED
     HANG_DETECTION_ENABLED=false \
     HANG_DETECTION_INTERVAL=30 \
@@ -100,6 +101,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     # Custom-script-settings
     CUSTOM_SCRIPT_ENABLED=false \
     CUSTOM_SCRIPT_PATH="/palworld/custom-script.sh" \
+    # Companion-sidecar-settings - web panel & Discord status card/bot
+    COMPANION_DATA_DIR="" \
     # Workshop-mod-settings
     WORKSHOP_MOD_IDS="" \
     WORKSHOP_MOD_UPDATE_CRON="0 */6 * * *" \
@@ -358,6 +361,8 @@ RUN chmod 755 /entrypoint.sh \
     && chmod -R 755 /scripts \
     && chmod -R 755 /includes \
     && chmod 644 /PalWorldSettings.ini.template
+
+COPY --chmod=644 default.env /default.env.template
 
 RUN mkdir -p "$BACKUP_PATH" \
     && ln -s /scripts/backupmanager.sh /usr/local/bin/backup \

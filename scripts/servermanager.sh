@@ -14,6 +14,7 @@ if [ ! -d "${WINEPREFIX}" ]; then
 fi
 
 source /includes/colors.sh
+source /includes/gameevents.sh
 source /includes/utils.sh
 source /includes/config.sh
 source /includes/cron.sh
@@ -26,6 +27,7 @@ source /includes/webhook.sh
 START_MAIN_PID=
 PLAYER_DETECTION_PID=
 HANG_DETECTION_PID=
+GAME_EVENTS_MAINTENANCE_PID=
 
 
 
@@ -70,6 +72,14 @@ do
     current_time=$(date +%H:%M:%S)
     ei ">>> Starting server manager"
     e "> Started at: $current_date $current_time"
+
+    # Provide this image's settings template on the game volume for the
+    # companion sidecar's settings export - see the companion's CONTRACT.md:
+    # https://github.com/jammsen/docker-palworld-companion
+    if [[ -f /default.env.template ]]; then
+        cp -f /default.env.template "${GAME_ROOT}/default.env.template"
+    fi
+
     rm -f "${GAME_ROOT}/.stopping" 2>/dev/null || true
     autopause_init
     start_main &
@@ -88,6 +98,11 @@ do
         ew "> Hang detection thread started with pid ${HANG_DETECTION_PID}"
     fi
 
+    # Single remover for game-events.log - every other process only appends
+    # (see includes/gameevents.sh for the concurrency design)
+    game_events_maintenance_loop &
+    GAME_EVENTS_MAINTENANCE_PID="$!"
+
     ew "> Server main thread started with pid ${START_MAIN_PID}"
     wait ${START_MAIN_PID} || true
 
@@ -100,6 +115,11 @@ do
     if [[ -n "${HANG_DETECTION_PID}" ]]; then
         kill -SIGTERM "${HANG_DETECTION_PID}" 2>/dev/null || true
         HANG_DETECTION_PID=""
+    fi
+
+    if [[ -n "${GAME_EVENTS_MAINTENANCE_PID}" ]]; then
+        kill -SIGTERM "${GAME_EVENTS_MAINTENANCE_PID}" 2>/dev/null || true
+        GAME_EVENTS_MAINTENANCE_PID=""
     fi
 
     if [[ -n $WEBHOOK_ENABLED ]] && [[ "${WEBHOOK_ENABLED,,}" == "true" ]]; then
