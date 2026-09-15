@@ -95,10 +95,15 @@ You can find the [changelog here](CHANGELOG.md)
    - (Examples: `/srv/palworld`, `/opt/palworld` or `/home/username/palworld`)
    - This directory will be used to store the game server files, including configs and savegames
    - In older versions we asked you to setup permissions via CHMOD or CHOWN, this should not be needed anymore!
-2. Set up Port-Forwarding or NAT for the ports in the Docker-Compose file
+2. Set up Port-Forwarding or NAT on your router:
+   | Port | Protocol | Purpose | Router Forwarding |
+   | :--- | :---: | :--- | :---: |
+   | **8211** | **UDP** | Game connections (players join here) | **Required** |
+   | **27015** | **UDP** | Steam Master Server query (community server browser) | **Required** |
+   | **8212** | **TCP** | Palworld REST API | LAN/Internal only |
 3. Pull the latest version of the image with `docker pull ghcr.io/ripps818/palworld-dedicated-server-wine:latest`
-4. Download the [docker-compose.yml](docker-compose.yml) and [default.env](default.env)
-5. Set up the `docker-compose.yml` and `default.env` to your liking
+4. Download [compose.yml](compose.yml) and [default.env](default.env)
+5. Set up `compose.yml` and `default.env` to your liking
    - Make sure you setup PUID and PGID according to the user you want to use
      - **PUID and PGID 0 will error out, thats on purpose!**
      - if you use Docker as root, then you can just use 1000 inside the container
@@ -297,6 +302,7 @@ services:
     environment:
       RESTAPI_HOST: palworld-wine-server
       COMPANION_DATA_DIR: /data
+      # Point companion directly to the Wine server's config location
       GAME_SETTINGS_FILE: /palworld/Pal/Saved/Config/WindowsServer/PalWorldSettings.ini
     volumes:
       - ./game:/palworld:ro

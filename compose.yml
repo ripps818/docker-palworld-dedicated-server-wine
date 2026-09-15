@@ -19,7 +19,7 @@ services:
         max-file: "3"
     ports:
       - target: 8211 # Gameserver port inside of the container
-        published: 8211 # Gamerserver port on your host
+        published: 8211 # Gameserver port on your host
         protocol: udp
         mode: host
       - target: 8212 # Gameserver API port inside of the container
