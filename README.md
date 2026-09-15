@@ -248,21 +248,18 @@ services:
         max-size: "10m"
         max-file: "3"
     ports:
-      - target: 8211 # Gamerserver port inside of the container
-        published: 8211 # Gamerserver port on your host
+      - target: 8211 # Gameserver port inside of the container
+        published: 8211 # Gameserver port on your host
         protocol: udp
         mode: host
       - target: 8212 # Gameserver API port inside of the container
         published: 8212 # Gameserver API port on your host
         protocol: tcp
         mode: host
-      - target: 25575 # RCON port inside of the container
-        published: 25575 # RCON port on your host
-        protocol: tcp
-        mode: host
       - target: 27015 # Query port inside of the container
         published: 27015 # Query port on your host
-        protocol: tcp
+        protocol: udp
+        mode: host
     env_file:
       - ./default.env
     environment:

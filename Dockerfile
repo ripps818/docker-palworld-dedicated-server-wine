@@ -285,7 +285,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 EXPOSE 8211/udp
 EXPOSE 8212/tcp
 EXPOSE 25575/tcp
-EXPOSE 27015/tcp
+EXPOSE 27015/udp
 
 # Install minimum required packages for dedicated server
 COPY --from=supercronicverify /usr/local/bin/supercronic /usr/local/bin/supercronic
