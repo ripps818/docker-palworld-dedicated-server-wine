@@ -94,10 +94,6 @@ function start_server() {
     fi
     check_and_run_custom_script
 
-    if [[ -d "${GAME_ROOT}/Pal/Saved/Config/WindowsServer" ]] && [[ ! -e "${GAME_ROOT}/Pal/Saved/Config/LinuxServer" ]]; then
-        ln -s "WindowsServer" "${GAME_ROOT}/Pal/Saved/Config/LinuxServer" 2>/dev/null || true
-    fi
-
     es ">>> Starting the gameserver"
     log_game_event starting
     # Real pty (via script) so Wine's WriteConsoleW transcodes instead of emitting raw UTF-16LE

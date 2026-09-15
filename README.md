@@ -300,6 +300,7 @@ services:
     environment:
       RESTAPI_HOST: palworld-wine-server
       COMPANION_DATA_DIR: /data
+      GAME_SETTINGS_FILE: /palworld/Pal/Saved/Config/WindowsServer/PalWorldSettings.ini
     volumes:
       - ./game:/palworld:ro
       - ./companion:/data
