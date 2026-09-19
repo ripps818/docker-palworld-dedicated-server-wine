@@ -21,5 +21,5 @@ function trim() {
     else
         input="$(cat)"
     fi
-    printf '%s\n' "$input" | tr -d '\r' | xargs
+    printf '%s\n' "$input" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
 }
